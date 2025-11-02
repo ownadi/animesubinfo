@@ -2,10 +2,16 @@ version = 1
 revision = 3
 requires-python = ">=3.13"
 
+[manifest]
+members = [
+    "animesubinfo",
+    "animesubinfo-cli",
+]
+
 [[package]]
 name = "animesubinfo"
 version = "0.1.0"
-source = { editable = "." }
+source = { editable = "packages/animesubinfo" }
 dependencies = [
     { name = "anitopy" },
     { name = "httpx" },
@@ -35,6 +41,29 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=0.24.0" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
     { name = "respx", specifier = ">=0.21.1" },
+]
+
+[[package]]
+name = "animesubinfo-cli"
+version = "0.1.0"
+source = { editable = "packages/animesubinfo-cli" }
+dependencies = [
+    { name = "animesubinfo" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "animesubinfo", editable = "packages/animesubinfo" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.4.2" },
+    { name = "pytest-asyncio", specifier = ">=0.24.0" },
 ]
 
 [[package]]

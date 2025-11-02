@@ -7,6 +7,8 @@ import respx
 from animesubinfo.api import search
 from animesubinfo.models import SortBy, Subtitles, TitleType
 
+from ..conftest import FIXTURES_DIR
+
 
 @pytest.mark.asyncio
 @respx.mock
@@ -14,7 +16,7 @@ async def test_search_single_page() -> None:
     """Test search with single page of results using real fixture."""
     # Load single page search results fixture
     with open(
-        "tests/fixtures/ansi_search_results_one_page.html", "r", encoding="iso-8859-2"
+        FIXTURES_DIR / "ansi_search_results_one_page.html", "r", encoding="iso-8859-2"
     ) as f:
         search_html = f.read()
 
@@ -46,7 +48,7 @@ async def test_search_multiple_pages() -> None:
     """Test search with multiple pages of results using real fixture."""
     # Load multi-page search results fixture (has 5 pages)
     with open(
-        "tests/fixtures/ansi_search_results.html", "r", encoding="iso-8859-2"
+        FIXTURES_DIR / "ansi_search_results.html", "r", encoding="iso-8859-2"
     ) as f:
         search_html = f.read()
 
@@ -75,7 +77,7 @@ async def test_search_multiple_pages() -> None:
 async def test_search_with_sort_by() -> None:
     """Test search with sort_by parameter."""
     with open(
-        "tests/fixtures/ansi_search_results_one_page.html", "r", encoding="iso-8859-2"
+        FIXTURES_DIR / "ansi_search_results_one_page.html", "r", encoding="iso-8859-2"
     ) as f:
         search_html = f.read()
 
@@ -105,7 +107,7 @@ async def test_search_with_sort_by() -> None:
 async def test_search_with_title_type() -> None:
     """Test search with title_type parameter."""
     with open(
-        "tests/fixtures/ansi_search_results_one_page.html", "r", encoding="iso-8859-2"
+        FIXTURES_DIR / "ansi_search_results_one_page.html", "r", encoding="iso-8859-2"
     ) as f:
         search_html = f.read()
 
@@ -135,7 +137,7 @@ async def test_search_with_title_type() -> None:
 async def test_search_with_page_limit() -> None:
     """Test search with page_limit parameter."""
     with open(
-        "tests/fixtures/ansi_search_results.html", "r", encoding="iso-8859-2"
+        FIXTURES_DIR / "ansi_search_results.html", "r", encoding="iso-8859-2"
     ) as f:
         search_html = f.read()
 
@@ -167,7 +169,7 @@ async def test_search_blank_results() -> None:
     """Test search with no results using blank fixture."""
     # Load blank search results fixture
     with open(
-        "tests/fixtures/ansi_search_results_blank.html", "r", encoding="iso-8859-2"
+        FIXTURES_DIR / "ansi_search_results_blank.html", "r", encoding="iso-8859-2"
     ) as f:
         search_html = f.read()
 
@@ -197,7 +199,7 @@ async def test_search_movie() -> None:
     """Test search for movie results using movie fixture."""
     # Load movie search results fixture
     with open(
-        "tests/fixtures/ansi_search_results_movie.html", "r", encoding="iso-8859-2"
+        FIXTURES_DIR / "ansi_search_results_movie.html", "r", encoding="iso-8859-2"
     ) as f:
         search_html = f.read()
 
@@ -230,7 +232,7 @@ async def test_search_pack() -> None:
     """Test search for pack results (multi-episode) using pack fixture."""
     # Load pack search results fixture
     with open(
-        "tests/fixtures/ansi_search_results_pack.html", "r", encoding="iso-8859-2"
+        FIXTURES_DIR / "ansi_search_results_pack.html", "r", encoding="iso-8859-2"
     ) as f:
         search_html = f.read()
 
@@ -260,7 +262,7 @@ async def test_search_pack() -> None:
 async def test_search_combined_parameters() -> None:
     """Test search with multiple parameters combined."""
     with open(
-        "tests/fixtures/ansi_search_results_one_page.html", "r", encoding="iso-8859-2"
+        FIXTURES_DIR / "ansi_search_results_one_page.html", "r", encoding="iso-8859-2"
     ) as f:
         search_html = f.read()
 

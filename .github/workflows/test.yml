@@ -8,7 +8,31 @@ on:
   workflow_call:  # Allow this workflow to be called by other workflows
 
 jobs:
+  # Detect which packages have changed
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      animesubinfo: ${{ steps.filter.outputs.animesubinfo }}
+      animesubinfo-cli: ${{ steps.filter.outputs.animesubinfo-cli }}
+      workspace: ${{ steps.filter.outputs.workspace }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: dorny/paths-filter@v3
+      id: filter
+      with:
+        filters: |
+          animesubinfo:
+            - 'packages/animesubinfo/**'
+          animesubinfo-cli:
+            - 'packages/animesubinfo-cli/**'
+          workspace:
+            - 'pyproject.toml'
+            - 'uv.lock'
+            - '.github/workflows/**'
+
   test:
+    needs: detect-changes
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -30,7 +54,23 @@ jobs:
         enable-cache: true
 
     - name: Install dependencies
-      run: uv sync --all-groups
+      run: uv sync --all-packages
 
-    - name: Run tests
-      run: uv run pytest
+    - name: Run tests for animesubinfo
+      # Run if: library changed, workspace changed, push to main, or called from another workflow
+      if: |
+        needs.detect-changes.outputs.animesubinfo == 'true' ||
+        needs.detect-changes.outputs.workspace == 'true' ||
+        github.event_name == 'push' ||
+        github.event_name == 'workflow_call'
+      run: uv run --package animesubinfo pytest
+
+    - name: Run tests for animesubinfo-cli
+      # Run if: CLI changed, library changed (dependency), workspace changed, push to main, or called from another workflow
+      if: |
+        needs.detect-changes.outputs.animesubinfo-cli == 'true' ||
+        needs.detect-changes.outputs.animesubinfo == 'true' ||
+        needs.detect-changes.outputs.workspace == 'true' ||
+        github.event_name == 'push' ||
+        github.event_name == 'workflow_call'
+      run: uv run --package animesubinfo-cli pytest

@@ -1,0 +1,28 @@
+[project]
+name = "animesubinfo-cli"
+version = "0.1.0"
+description = "Command-line interface for animesubinfo"
+readme = "README.md"
+authors = [
+    { name = "Adrian Lehmann", email = "ownadi@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "animesubinfo",
+]
+
+[project.scripts]
+animesubinfo = "animesubinfo_cli.cli:main"
+
+[tool.uv.sources]
+animesubinfo = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.8.22,<0.9.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-asyncio>=0.24.0",
+]

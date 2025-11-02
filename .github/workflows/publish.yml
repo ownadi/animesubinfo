@@ -3,7 +3,8 @@ name: Publish to PyPI
 on:
   push:
     tags:
-      - 'v*'
+      - 'animesubinfo-v*'
+      - 'animesubinfo-cli-v*'
 
 jobs:
   test:
@@ -27,8 +28,23 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v5
 
+    - name: Determine package from tag
+      id: package
+      run: |
+        TAG="${{ github.ref_name }}"
+        if [[ $TAG == animesubinfo-cli-v* ]]; then
+          echo "package=animesubinfo-cli" >> $GITHUB_OUTPUT
+          echo "path=packages/animesubinfo-cli" >> $GITHUB_OUTPUT
+        elif [[ $TAG == animesubinfo-v* ]]; then
+          echo "package=animesubinfo" >> $GITHUB_OUTPUT
+          echo "path=packages/animesubinfo" >> $GITHUB_OUTPUT
+        else
+          echo "Unknown tag format: $TAG"
+          exit 1
+        fi
+
     - name: Build package
-      run: uv build
+      run: uv build --package ${{ steps.package.outputs.package }}
 
     - name: Publish to PyPI
-      run: uv publish
+      run: uv publish --package ${{ steps.package.outputs.package }}

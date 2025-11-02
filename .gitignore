@@ -10,7 +10,6 @@ wheels/
 .venv
 
 # IDE files
-.vscode/
 .claude/
 
 # Test coverage

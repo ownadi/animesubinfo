@@ -1,11 +1,14 @@
 from datetime import date
+
 from animesubinfo.parsers import SearchResultsParser
+
+from ...conftest import FIXTURES_DIR
 
 
 def prepare_search_results_parser(
     fixture_name: str = "ansi_search_results.html",
 ) -> SearchResultsParser:
-    with open(f"tests/fixtures/{fixture_name}", "r", encoding="iso-8859-2") as file:
+    with open(FIXTURES_DIR / fixture_name, "r", encoding="iso-8859-2") as file:
         html_content = file.read()
 
     parser = SearchResultsParser()
@@ -200,7 +203,7 @@ def test_search_results_blank():
 
 def test_search_results_with_cookie():
     with open(
-        "tests/fixtures/ansi_search_results.html", "r", encoding="iso-8859-2"
+        FIXTURES_DIR / "ansi_search_results.html", "r", encoding="iso-8859-2"
     ) as file:
         html_content = file.read()
 

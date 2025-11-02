@@ -1,10 +1,12 @@
 from animesubinfo.parsers import CatalogParser
 
+from ...conftest import FIXTURES_DIR
+
 
 def prepare_parser(
     title: str, fixture_name: str = "ansi_catalog.html"
 ) -> CatalogParser:
-    with open(f"tests/fixtures/{fixture_name}", "r", encoding="iso-8859-2") as file:
+    with open(FIXTURES_DIR / fixture_name, "r", encoding="iso-8859-2") as file:
         html_content = file.read()
 
     parser = CatalogParser(title)
@@ -45,7 +47,7 @@ def test_catalog_parser_invalid_html():
 
 
 def test_feed_and_get_result_regular():
-    with open("tests/fixtures/ansi_catalog.html", "r", encoding="iso-8859-2") as file:
+    with open(FIXTURES_DIR / "ansi_catalog.html", "r", encoding="iso-8859-2") as file:
         html_content = file.read()
 
     parser = CatalogParser("Elf Princess Rane")
@@ -55,7 +57,7 @@ def test_feed_and_get_result_regular():
 
 
 def test_feed_and_get_result_streaming():
-    with open("tests/fixtures/ansi_catalog.html", "r", encoding="iso-8859-2") as file:
+    with open(FIXTURES_DIR / "ansi_catalog.html", "r", encoding="iso-8859-2") as file:
         html_content = file.read()
 
     parser = CatalogParser("Elf Princess Rane")

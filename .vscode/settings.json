@@ -1,0 +1,16 @@
+{
+  "python.testing.pytestArgs": [
+    "packages"
+  ],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "python.testing.cwd": "${workspaceFolder}",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/packages/animesubinfo/src",
+    "${workspaceFolder}/packages/animesubinfo-cli/src"
+  ],
+  "python.autoComplete.extraPaths": [
+    "${workspaceFolder}/packages/animesubinfo/src",
+    "${workspaceFolder}/packages/animesubinfo-cli/src"
+  ]
+}
