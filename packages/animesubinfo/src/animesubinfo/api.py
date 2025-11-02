@@ -74,7 +74,7 @@ async def search(
     """
     base_url = "http://animesub.info/szukaj.php"
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(default_encoding="iso-8859-2") as client:
         # Fetch and parse first page
         params = {
             "szukane": phrase,
@@ -178,7 +178,7 @@ async def search_by_id(subtitle_id: int) -> Optional[SessionData]:
     """
     base_url = "http://animesub.info/szukaj.php"
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(default_encoding="iso-8859-2") as client:
         params = {"ID": str(subtitle_id)}
 
         async with client.stream("GET", base_url, params=params) as response:
@@ -230,7 +230,9 @@ async def download_subtitles(subtitle_id: int) -> AsyncIterator[DownloadResult]:
 
     url = "http://animesub.info/sciagnij.php"
 
-    client = httpx.AsyncClient(cookies={"ansi_sciagnij": session.ansi_cookie})
+    client = httpx.AsyncClient(
+        cookies={"ansi_sciagnij": session.ansi_cookie}, default_encoding="iso-8859-2"
+    )
     response = None
     try:
         response = await client.post(
@@ -534,7 +536,7 @@ async def find_best_subtitles(
     first_letter = title[0].lower()
     catalog_url = f"http://animesub.info/katalog.php?S={first_letter}"
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(default_encoding="iso-8859-2") as client:
         # Step 1: Parse catalog to find search path
         catalog_parser = CatalogParser(title, normalizer=norm)
         search_path = None

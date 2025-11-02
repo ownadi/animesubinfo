@@ -1,6 +1,6 @@
 [project]
 name = "animesubinfo"
-version = "0.1.0"
+version = "0.1.1"
 description = "Python client for searching and downloading anime subtitles from AnimeSub.info"
 readme = "README.md"
 authors = [
