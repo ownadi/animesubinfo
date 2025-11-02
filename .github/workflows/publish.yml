@@ -47,4 +47,5 @@ jobs:
       run: uv build --package ${{ steps.package.outputs.package }}
 
     - name: Publish to PyPI
-      run: uv publish --package ${{ steps.package.outputs.package }}
+      run: uv publish
+      working-directory: ${{ steps.package.outputs.path }}
