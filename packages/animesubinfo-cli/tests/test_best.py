@@ -93,7 +93,8 @@ class TestBestCommand:
         assert result.exit_code == 0
         expected_output = tmp_path / "My Movie 2024.srt"
         assert expected_output.exists()
-        assert "My Movie 2024.srt" in result.stdout
+        # Check filename in output (normalize whitespace for wrapped lines)
+        assert "My Movie 2024.srt" in result.stdout.replace("\n", "")
 
     def test_best_shows_subtitle_id(
         self,
