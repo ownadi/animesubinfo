@@ -5,7 +5,7 @@ Python client and tools for searching and downloading anime subtitles from [Anim
 ## Packages
 
 - **[animesubinfo](./packages/animesubinfo)** - Core library
-- **[animesubinfo-cli](./packages/animesubinfo-cli)** - Command-line interface (in development)
+- **[animesubinfo-cli](./packages/animesubinfo-cli)** - Command-line interface
 
 ## Development
 
