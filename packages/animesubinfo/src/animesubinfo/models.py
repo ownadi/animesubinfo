@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import date
 from difflib import SequenceMatcher
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, cast
 
@@ -10,13 +10,13 @@ import anitopy  # type: ignore[import-untyped]
 from .utils import normalize
 
 
-class TitleType(Enum):
+class TitleType(StrEnum):
     ORIGINAL = "org"
     ENGLISH = "en"
     ALTERNATIVE = "pl"
 
 
-class SortBy(Enum):
+class SortBy(StrEnum):
     FITNESS = "traf"
     ORIGINAL_TITLE = "t_org"
     ENGLISH_TITLE = "t_ang"
