@@ -6,12 +6,9 @@ from typing import AsyncIterator
 
 import pytest
 from pytest_mock import MockerFixture
-from typer.testing import CliRunner
 
 from animesubinfo_cli.cli import app
-from conftest import MOCK_DOWNLOAD_SUBTITLES
-
-runner = CliRunner()
+from conftest import MOCK_DOWNLOAD_SUBTITLES, runner
 
 
 class MockDownloadResult:

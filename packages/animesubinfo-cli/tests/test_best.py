@@ -5,13 +5,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 from pytest_mock import MockerFixture
-from typer.testing import CliRunner
 
 from animesubinfo import ExtractedSubtitle, Subtitles
 from animesubinfo_cli.cli import app
-from conftest import MOCK_BEST_DOWNLOAD, MOCK_BEST_FIND
-
-runner = CliRunner()
+from conftest import MOCK_BEST_DOWNLOAD, MOCK_BEST_FIND, runner
 
 
 class TestBestCommand:

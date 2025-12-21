@@ -5,13 +5,10 @@ from datetime import date
 from unittest.mock import AsyncMock
 
 from pytest_mock import MockerFixture
-from typer.testing import CliRunner
 
 from animesubinfo import Subtitles, SubtitlesRating
 from animesubinfo_cli.cli import app
-from conftest import MOCK_FIND_BEST_SUBTITLES
-
-runner = CliRunner()
+from conftest import MOCK_FIND_BEST_SUBTITLES, runner
 
 
 class TestFindCommand:

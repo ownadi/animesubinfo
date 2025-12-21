@@ -3,8 +3,12 @@
 from datetime import date
 
 import pytest
+from typer.testing import CliRunner
 
 from animesubinfo import Subtitles, SubtitlesRating
+
+# Shared runner with colors disabled for consistent CI output
+runner = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb"})
 
 # Mock target paths
 MOCK_SEARCH = "animesubinfo_cli.commands.search.search"

@@ -5,13 +5,10 @@ from collections.abc import AsyncGenerator
 from datetime import date
 
 from pytest_mock import MockerFixture
-from typer.testing import CliRunner
 
 from animesubinfo import SortBy, Subtitles, SubtitlesRating, TitleType
 from animesubinfo_cli.cli import app
-from conftest import MOCK_SEARCH
-
-runner = CliRunner()
+from conftest import MOCK_SEARCH, runner
 
 
 async def _async_gen_subtitles(
