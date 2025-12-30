@@ -10,39 +10,49 @@ class CatalogParser(HTMLParser):
     """HTML parser for anime catalog pages that finds matching titles.
 
     Parses HTML catalog pages to find anime entries matching a given title.
-    Supports both primary titles (in link text) and alternative titles
-    (listed after the main link with "- " prefix).
+    Supports season and year-aware matching by trying multiple search variants
+    against normalized catalog text using fuzzy matching.
 
-    Uses the normalize function by default for title matching, which removes
-    spaces, special characters, converts to lowercase, and handles leading zeros.
-    A custom normalizer can be provided to override this behavior.
+    When season is provided, tries these variants against each catalog entry:
+    - base title (e.g., "yurucamp")
+    - title + season (e.g., "yurucamp3")
+    - title + "season" + season (e.g., "yurucampseason3")
+    - title + season + "season" (e.g., "yurucamp3season")
 
-    Returns the search page path for the matched anime title, or None if no match found.
+    When year is provided, also tries:
+    - title + year (e.g., "hunterxhunter2011")
+
+    The best matching score across all variants is used for each catalog entry.
 
     Example:
         parser = CatalogParser("Elf Princess Rane")
         result = parser.feed_and_get_result(html_content)
         # Returns: "szukaj_old.php?pTitle=en&szukane=Elf+Princess+Rane"
-        # This is a search page path that can be used to find subtitles
 
-    With custom normalizer:
-        def simple_normalizer(text: str) -> str:
-            return text.lower().replace(" ", "")
+    Season-aware matching:
+        parser = CatalogParser("Yuru Camp", season="3")
+        result = parser.feed_and_get_result(html_content)
+        # Matches "Yuru Camp Season 3" in catalog
 
-        parser = CatalogParser("Anime Title", normalizer=simple_normalizer)
-
-    For streaming HTML:
-        parser = CatalogParser("Anime Title")
-        for chunk in html_chunks:
-            result = parser.feed_and_get_result(chunk)
-            if result:  # Found match, can stop early
-                break
+    Year-aware matching:
+        parser = CatalogParser("Hunter x Hunter", year="2011")
+        result = parser.feed_and_get_result(html_content)
+        # Matches "Hunter x Hunter (2011)" in catalog
     """
 
-    def __init__(self, title: str, *, normalizer: Callable[[str], str] = normalize):
+    def __init__(
+        self,
+        title: str,
+        *,
+        season: Optional[str] = None,
+        year: Optional[str] = None,
+        threshold: float = 0.6,
+        normalizer: Callable[[str], str] = normalize,
+    ):
         super().__init__()
         self._normalizer = normalizer
-        self._title = self._normalizer(title)
+        self._threshold = threshold
+        self._search_variants = self._build_search_variants(title, season, year)
         self._result: Optional[str] = None
         self._current_link: Optional[str] = None
         self._current_text = ""
@@ -51,6 +61,39 @@ class CatalogParser(HTMLParser):
         self._best_match: Optional[Tuple[float, str]] = None  # (similarity, link)
         self._in_div = False
         self._div_class: Optional[str] = None
+
+    def _build_search_variants(
+        self, title: str, season: Optional[str], year: Optional[str]
+    ) -> List[str]:
+        """Build list of search variants to try against catalog entries.
+
+        When season or year is provided, only season/year-specific variants
+        are included (no base title). This prevents the base title from
+        "stealing" matches when searching for a specific season/year.
+
+        Each variant is normalized as a complete string to ensure consistency
+        with custom normalizers.
+        """
+        variants: List[str] = []
+
+        if season:
+            s = str(season)
+            variants.extend(
+                [
+                    self._normalizer(f"{title} {s}"),
+                    self._normalizer(f"{title} Season {s}"),
+                    self._normalizer(f"{title} {s} Season"),
+                ]
+            )
+
+        if year:
+            variants.append(self._normalizer(f"{title} {year}"))
+
+        # Only include base variant if no season/year specified
+        if not variants:
+            variants = [self._normalizer(title)]
+
+        return variants
 
     @property
     def result(self) -> Optional[str]:
@@ -62,18 +105,58 @@ class CatalogParser(HTMLParser):
         self.feed(data)
         return self._result
 
+    def _calculate_match(self, catalog_text: str) -> Tuple[bool, float]:
+        """Calculate best match score for a catalog entry against all search variants.
+
+        Tries all search variants (base title, with season, with year) against
+        the normalized catalog text and returns the best score.
+
+        Args:
+            catalog_text: The catalog entry text to match against
+
+        Returns:
+            Tuple of (is_exact_match, similarity_score).
+            Returns (False, 0.0) if below threshold.
+        """
+        normalized_catalog = self._normalizer(catalog_text)
+
+        best_score = 0.0
+        is_exact = False
+
+        for variant in self._search_variants:
+            if variant == normalized_catalog:
+                return (True, 1.0)  # Exact match, return immediately
+
+            score = SequenceMatcher(None, variant, normalized_catalog).ratio()
+            if score > best_score:
+                best_score = score
+
+        if best_score >= self._threshold:
+            return (is_exact, best_score)
+
+        return (False, 0.0)
+
+    def _extract_search_path(self, href: str) -> Optional[str]:
+        """Extract relative search path from href, handling both relative and absolute URLs."""
+        # Handle absolute URLs like "http://animesub.info/szukaj_old.php?..."
+        prefix = "http://animesub.info/"
+        if href.startswith(prefix):
+            href = href[len(prefix) :]
+        # Only accept szukaj_old.php URLs
+        if href.startswith("szukaj_old.php"):
+            return unescape(href)
+        return None
+
     def handle_starttag(self, tag: str, attrs: List[Tuple[str, Optional[str]]]) -> None:
         if tag == "a":
             for attr_name, attr_value in attrs:
-                if (
-                    attr_name == "href"
-                    and attr_value
-                    and attr_value.startswith("szukaj_old.php")
-                ):
-                    self._current_link = unescape(attr_value)
-                    self._in_link = True
-                    self._current_text = ""
-                    break
+                if attr_name == "href" and attr_value:
+                    search_path = self._extract_search_path(attr_value)
+                    if search_path:
+                        self._current_link = search_path
+                        self._in_link = True
+                        self._current_text = ""
+                        break
         elif tag == "div":
             self._in_div = True
             self._div_class = None
@@ -85,16 +168,15 @@ class CatalogParser(HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         if tag == "a" and self._in_link:
             self._in_link = False
-            normalized_text = self._normalizer(self._current_text.strip())
-            if normalized_text == self._title:
+            catalog_text = self._current_text.strip()
+            is_exact, similarity = self._calculate_match(catalog_text)
+
+            if is_exact:
                 self._result = self._current_link
                 self._found_match = True
-            elif not self._found_match and self._current_link:
-                # Calculate similarity for potential fuzzy match
-                similarity = SequenceMatcher(None, normalized_text, self._title).ratio()
-                if similarity >= 0.85:
-                    if self._best_match is None or similarity > self._best_match[0]:
-                        self._best_match = (similarity, self._current_link)
+            elif not self._found_match and self._current_link and similarity > 0:
+                if self._best_match is None or similarity > self._best_match[0]:
+                    self._best_match = (similarity, self._current_link)
 
         elif tag == "div" and self._in_div:
             self._in_div = False
@@ -111,15 +193,11 @@ class CatalogParser(HTMLParser):
             stripped_data = data.strip()
             if stripped_data.startswith("- "):
                 alt_title = stripped_data[2:]
-                normalized_alt_title = self._normalizer(alt_title)
-                if normalized_alt_title == self._title:
+                is_exact, similarity = self._calculate_match(alt_title)
+
+                if is_exact:
                     self._result = self._current_link
                     self._found_match = True
-                else:
-                    # Calculate similarity for alternative title fuzzy match
-                    similarity = SequenceMatcher(
-                        None, normalized_alt_title, self._title
-                    ).ratio()
-                    if similarity >= 0.60:
-                        if self._best_match is None or similarity > self._best_match[0]:
-                            self._best_match = (similarity, self._current_link)
+                elif similarity > 0:
+                    if self._best_match is None or similarity > self._best_match[0]:
+                        self._best_match = (similarity, self._current_link)

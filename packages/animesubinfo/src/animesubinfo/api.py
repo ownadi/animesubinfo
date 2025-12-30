@@ -532,13 +532,22 @@ async def find_best_subtitles(
     if not title:
         return None
 
+    # Extract season and year for catalog matching
+    anime_season = parsed.get("anime_season")
+    anime_year = parsed.get("anime_year")
+
     # Get first letter for catalog URL
     first_letter = title[0].lower()
     catalog_url = f"http://animesub.info/katalog.php?S={first_letter}"
 
     async with httpx.AsyncClient(default_encoding="iso-8859-2") as client:
         # Step 1: Parse catalog to find search path
-        catalog_parser = CatalogParser(title, normalizer=norm)
+        catalog_parser = CatalogParser(
+            title,
+            season=str(anime_season) if anime_season else None,
+            year=str(anime_year) if anime_year else None,
+            normalizer=norm,
+        )
         search_path = None
         async with client.stream("GET", catalog_url) as response:
             response.raise_for_status()

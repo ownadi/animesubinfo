@@ -75,7 +75,7 @@ def test_feed_and_get_result_streaming():
 
 
 def test_catalog_parser_fuzzy_match():
-    """Test fuzzy matching with >= 0.85 similarity when no exact match is found."""
+    """Test fuzzy matching with >= 0.6 similarity when no exact match is found."""
     parser = prepare_parser("Elf Princess Ren")
 
     # Should match "Elf Princess Rane" with fuzzy matching (similarity ~0.97)
@@ -83,8 +83,95 @@ def test_catalog_parser_fuzzy_match():
 
 
 def test_catalog_parser_fuzzy_match_below_threshold():
-    """Test that fuzzy matching doesn't match when similarity is below 0.85."""
+    """Test that fuzzy matching doesn't match when similarity is below 0.6."""
     parser = prepare_parser("Elf")
 
-    # "Elf" is too short and won't have >= 0.85 similarity with any title
+    # "Elf" is too short and won't have >= 0.6 similarity with any title
     assert parser.result is None
+
+
+# Yuru Camp season/movie matching tests using ansi_catalog_y.html fixture
+
+
+def prepare_parser_with_params(
+    title: str,
+    fixture_name: str = "ansi_catalog.html",
+    season: str | None = None,
+    year: str | None = None,
+) -> CatalogParser:
+    """Prepare a CatalogParser with season/year parameters."""
+    with open(FIXTURES_DIR / fixture_name, "r", encoding="iso-8859-2") as file:
+        html_content = file.read()
+
+    parser = CatalogParser(title, season=season, year=year)
+    parser.feed(html_content)
+    return parser
+
+
+def test_catalog_yuru_camp_season_3():
+    """Test that 'Yuru Camp' with season=3 matches 'Yuru Camp Season 3' in catalog."""
+    parser = prepare_parser_with_params(
+        "Yuru Camp", fixture_name="ansi_catalog_y.html", season="3"
+    )
+
+    # Should match "Yuru Camp Season 3" via variant matching
+    assert parser.result == "szukaj_old.php?pTitle=jp&szukane=Yuru+Camp+Season+3"
+
+
+def test_catalog_yuru_camp_season_2():
+    """Test that 'Yuru Camp' with season=2 matches 'Yuru Camp Season 2' in catalog."""
+    parser = prepare_parser_with_params(
+        "Yuru Camp", fixture_name="ansi_catalog_y.html", season="2"
+    )
+
+    # Should match "Yuru Camp Season 2" via variant matching
+    assert parser.result == "szukaj_old.php?pTitle=jp&szukane=Yuru+Camp+Season+2"
+
+
+def test_catalog_yuru_camp_base():
+    """Test that 'Yuru Camp' without season matches base catalog entry."""
+    parser = prepare_parser_with_params("Yuru Camp", fixture_name="ansi_catalog_y.html")
+
+    # Should match "Yuru Camp" exactly
+    assert parser.result == "szukaj_old.php?pTitle=jp&szukane=Yuru+Camp"
+
+
+def test_catalog_yuru_camp_movie_fuzzy():
+    """Test that 'Yuru Camp Movie' fuzzy-matches 'Yuru Camp The Movie'."""
+    # No type filtering - just fuzzy matching on normalized text
+    parser = prepare_parser_with_params(
+        "Yuru Camp Movie", fixture_name="ansi_catalog_y.html"
+    )
+
+    # Should fuzzy-match "Yuru Camp The Movie" (similarity ~0.897)
+    assert parser.result == "szukaj_old.php?pTitle=jp&szukane=Yuru+Camp+The+Movie"
+
+
+def test_catalog_season_format_s3():
+    """Test that season=3 matches various catalog formats (Season 3, S3, etc)."""
+    parser = prepare_parser_with_params(
+        "Yuru Camp", fixture_name="ansi_catalog_y.html", season="3"
+    )
+
+    # Catalog has "Yuru Camp Season 3", our variants include "yurucampseason3"
+    assert parser.result == "szukaj_old.php?pTitle=jp&szukane=Yuru+Camp+Season+3"
+
+
+# Bakuman tests - sequel number matching (not detected as season by anitopy)
+
+
+def test_catalog_bakuman_base():
+    """Test that 'Bakuman' matches 'Bakuman.' in catalog."""
+    parser = prepare_parser("Bakuman", fixture_name="ansi_catalog_b.html")
+
+    # Should match "Bakuman." exactly (both normalize to "bakuman")
+    assert parser.result == "szukaj_old.php?pTitle=en&szukane=Bakuman_"
+
+
+def test_catalog_bakuman_ii_matches_sequel():
+    """Test that 'Bakuman II' matches 'Bakuman. 2' via Roman numeral normalization."""
+    # "Bakuman II" normalizes to "bakuman2", "Bakuman. 2" also normalizes to "bakuman2"
+    parser = prepare_parser("Bakuman II", fixture_name="ansi_catalog_b.html")
+
+    # Should match "Bakuman. 2" (alternative title matches)
+    assert parser.result == "szukaj_old.php?pTitle=pl&szukane=Bakuman_+2"
