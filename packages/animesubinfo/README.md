@@ -25,6 +25,7 @@ from animesubinfo import (
     download_subtitles,
     download_and_extract_subtitle,
     ExtractedSubtitle,
+    SubtitleCache,
     SortBy,
     TitleType,
     Subtitles,
@@ -79,6 +80,35 @@ async def main():
 
 asyncio.run(main())
 ```
+
+### Batch processing with cache
+
+When processing multiple files from the same anime, use `SubtitleCache` to avoid redundant network requests:
+
+```python
+import asyncio
+from animesubinfo import find_best_subtitles, download_and_extract_subtitle, SubtitleCache
+
+async def main():
+    files = [
+        "[HorribleSubs] Attack on Titan - 01 [1080p].mkv",
+        "[HorribleSubs] Attack on Titan - 02 [1080p].mkv",
+        "[HorribleSubs] Attack on Titan - 03 [1080p].mkv",
+    ]
+
+    # Shared cache - searches once per title, reuses results for all episodes
+    cache = SubtitleCache()
+
+    for filename in files:
+        subtitle = await find_best_subtitles(filename, cache=cache)
+        if subtitle:
+            extracted = await download_and_extract_subtitle(filename, subtitle.id)
+            print(f"{filename} -> {extracted.filename}")
+
+asyncio.run(main())
+```
+
+The cache is keyed by `(normalized_title, year, season)`, so all episodes of the same anime share cached search results.
 
 ### Download subtitles
 
@@ -166,7 +196,7 @@ Search for subtitles on AnimeSub.info.
 **Yields:**
 - `Subtitles`: Individual subtitle results
 
-### `find_best_subtitles(filename_or_dict, *, normalizer=None, semaphore=None)`
+### `find_best_subtitles(filename_or_dict, *, normalizer=None, semaphore=None, cache=None)`
 
 Find the best matching subtitles for an anime file.
 
@@ -174,6 +204,7 @@ Find the best matching subtitles for an anime file.
 - `filename_or_dict` (str | dict): Anime filename or anitopy-parsed dict
 - `normalizer` (callable, optional): Custom normalization function
 - `semaphore` (asyncio.Semaphore, optional): Semaphore for limiting concurrent requests (default: 3 concurrent)
+- `cache` (SubtitleCache, optional): Cache for storing/retrieving search results by title. Enables efficient batch processing without repeated network requests.
 
 **Returns:**
 - `Subtitles | None`: Best matching subtitle or None if not found

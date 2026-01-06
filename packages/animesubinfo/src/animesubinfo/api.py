@@ -19,6 +19,7 @@ from typing import (
 import anitopy  # type: ignore[import-untyped]
 import httpx
 
+from .cache import CacheKey, SubtitleCache
 from .exceptions import SecurityError, SessionDataError
 from .models import SortBy, Subtitles, TitleType
 from .parsers.catalog_parser import CatalogParser
@@ -489,48 +490,68 @@ async def download_and_extract_subtitle(
         return ExtractedSubtitle(filename=Path(best_file).name, content=content)
 
 
-async def find_best_subtitles(
-    filename_or_dict: str | dict[str, Any],
-    *,
-    normalizer: Optional[Callable[[str], str]] = None,
-    semaphore: Optional[asyncio.Semaphore] = None,
-) -> Optional[Subtitles]:
-    """Find the best matching subtitles for a given anime file.
+async def _iter_title_subtitles(
+    parsed: dict[str, Any],
+    normalizer: Callable[[str], str],
+    semaphore: Optional[asyncio.Semaphore],
+    cache: Optional[SubtitleCache],
+    cache_key: CacheKey,
+) -> AsyncGenerator[Subtitles, None]:
+    """Yield subtitles from cache or network.
 
-    This function:
-    1. Extracts anime title from filename/dict using anitopy
-    2. Parses the AnimeSub.info catalog to find the title
-    3. Searches all subtitles for that title (across all pages concurrently)
-    4. Calculates fitness scores for each subtitle against the provided file
-    5. Returns the subtitle with the highest score
+    This async generator provides a unified interface for iterating over subtitles,
+    regardless of whether they come from cache or network. On cache miss, it fetches
+    from the network, yields results as they stream in, and populates the cache.
 
-    Args:
-        filename_or_dict: Filename string or anitopy-parsed dict to match against
-        normalizer: Optional custom normalization function (defaults to project's normalize)
-        semaphore: Semaphore for limiting concurrent requests (default: 3 concurrent)
+    When a cache is provided, uses per-key locking to ensure only one coroutine
+    fetches data for a given title, even under concurrent access.
 
-    Returns:
-        Subtitles object with highest fitness score, or None if no match found
-
-    Example:
-        ```
-        best = await find_best_subtitles(
-            "[HorribleSubs] Attack on Titan - 12 [BD 1080p].mkv"
-        )
-        ```
+    Yields:
+        Subtitles objects as they become available
     """
-    norm = normalizer or default_normalize
+    # No cache - just fetch from network
+    if cache is None:
+        async for subtitle in _fetch_title_subtitles(parsed, normalizer, semaphore):
+            yield subtitle
+        return
 
-    # Parse filename to extract title
-    parsed: dict[str, Any]
-    if isinstance(filename_or_dict, str):
-        parsed = cast(dict[str, Any], anitopy.parse(filename_or_dict) or {})  # type: ignore[misc]
-    else:
-        parsed = filename_or_dict
+    # Acquire lock to prevent duplicate fetches
+    lock = cache.get_lock(cache_key)
+    async with lock:
+        cached = cache.get(cache_key)
+        if cached is not None:
+            # Cache hit - will yield outside lock
+            pass
+        else:
+            # Cache miss - fetch and populate
+            accumulated: list[Subtitles] = []
+            async for subtitle in _fetch_title_subtitles(parsed, normalizer, semaphore):
+                accumulated.append(subtitle)
+                yield subtitle
 
+            cache.set(cache_key, accumulated)
+            return
+
+    # Yield cached data outside the lock
+    for subtitle in cached:
+        yield subtitle
+
+
+async def _fetch_title_subtitles(
+    parsed: dict[str, Any],
+    normalizer: Callable[[str], str],
+    semaphore: Optional[asyncio.Semaphore],
+) -> AsyncGenerator[Subtitles, None]:
+    """Fetch subtitles from AnimeSub.info network.
+
+    Internal helper that handles catalog lookup and paginated search.
+
+    Yields:
+        Subtitles objects as they are fetched from pages
+    """
     title = str(parsed.get("anime_title", ""))
     if not title:
-        return None
+        return
 
     # Extract season and year for catalog matching
     anime_season = parsed.get("anime_season")
@@ -546,7 +567,7 @@ async def find_best_subtitles(
             title,
             season=str(anime_season) if anime_season else None,
             year=str(anime_year) if anime_year else None,
-            normalizer=norm,
+            normalizer=normalizer,
         )
         search_path = None
         async with client.stream("GET", catalog_url) as response:
@@ -557,7 +578,7 @@ async def find_best_subtitles(
                     break  # Found match, stop downloading
 
         if not search_path:
-            return None
+            return
 
         # Step 2: Parse first page to get total pages
         search_url = f"http://animesub.info/{search_path}"
@@ -577,37 +598,23 @@ async def find_best_subtitles(
                 first_parser.feed(chunk)
 
         if not first_parser:
-            return None
+            return
 
         first_page_results = first_parser.subtitles_list
         total_pages = first_parser.number_of_pages
 
         if not first_page_results:
-            return None
+            return
 
-        # Step 3: Calculate fitness and track best match
-        best_subtitle: Optional[Subtitles] = None
-        best_score = 0
+        # Yield first page results
+        for subtitle in first_page_results:
+            yield subtitle
 
-        def update_best(subtitle: Subtitles) -> None:
-            """Update best match if this subtitle has a higher score or same score but newer date."""
-            nonlocal best_subtitle, best_score
-            score = subtitle.calculate_fitness(parsed)
-            if score > best_score:
-                best_score = score
-                best_subtitle = subtitle
-            elif score == best_score and best_subtitle is not None:
-                # Same score - pick the newer one (more recent date)
-                if subtitle.date > best_subtitle.date:
-                    best_subtitle = subtitle
-
-        # Single page case - score and return early
+        # Single page case - done
         if total_pages == 1:
-            for subtitle in first_page_results:
-                update_best(subtitle)
-            return best_subtitle
+            return
 
-        # Multiple pages - fetch concurrently while scoring
+        # Multiple pages - fetch concurrently
         # Use provided semaphore or create default
         if semaphore is None:
             semaphore = asyncio.Semaphore(3)
@@ -616,7 +623,7 @@ async def find_best_subtitles(
             """Fetch and parse a single page with concurrency limit."""
             async with semaphore:
                 # Parse URL to extract params
-                from urllib.parse import urlparse, parse_qs
+                from urllib.parse import parse_qs, urlparse
 
                 parsed_url = urlparse(search_path)
                 params = parse_qs(parsed_url.query)
@@ -643,14 +650,86 @@ async def find_best_subtitles(
                 for page_num in range(2, total_pages + 1)
             ]
 
-            # Score first page results while other pages are being fetched
-            for subtitle in first_page_results:
-                update_best(subtitle)
-
-            # Score results from remaining pages as they arrive
+            # Yield results from remaining pages as they arrive
             for coro in asyncio.as_completed(tasks):
                 page_results = await coro
                 for subtitle in page_results:
-                    update_best(subtitle)
+                    yield subtitle
 
-        return best_subtitle
+
+async def find_best_subtitles(
+    filename_or_dict: str | dict[str, Any],
+    *,
+    normalizer: Optional[Callable[[str], str]] = None,
+    semaphore: Optional[asyncio.Semaphore] = None,
+    cache: Optional[SubtitleCache] = None,
+) -> Optional[Subtitles]:
+    """Find the best matching subtitles for a given anime file.
+
+    This function:
+    1. Extracts anime title from filename/dict using anitopy
+    2. Parses the AnimeSub.info catalog to find the title
+    3. Searches all subtitles for that title (across all pages concurrently)
+    4. Calculates fitness scores for each subtitle against the provided file
+    5. Returns the subtitle with the highest score
+
+    Args:
+        filename_or_dict: Filename string or anitopy-parsed dict to match against
+        normalizer: Optional custom normalization function (defaults to project's normalize)
+        semaphore: Semaphore for limiting concurrent requests (default: 3 concurrent)
+        cache: Optional cache dict for storing/retrieving search results by title.
+            When provided, results are cached by (normalized_title, year, season).
+            This enables efficient batch processing of multiple files from the same
+            anime title without repeated network requests.
+
+    Returns:
+        Subtitles object with highest fitness score, or None if no match found
+
+    Example:
+        ```
+        # Single file
+        best = await find_best_subtitles(
+            "[HorribleSubs] Attack on Titan - 12 [BD 1080p].mkv"
+        )
+
+        # Batch processing with cache
+        cache: SubtitleCache = {}
+        for filename in episode_files:
+            best = await find_best_subtitles(filename, cache=cache)
+        ```
+    """
+    norm = normalizer or default_normalize
+
+    # Parse filename to extract title
+    parsed: dict[str, Any]
+    if isinstance(filename_or_dict, str):
+        parsed = cast(dict[str, Any], anitopy.parse(filename_or_dict) or {})  # type: ignore[misc]
+    else:
+        parsed = filename_or_dict
+
+    title = str(parsed.get("anime_title", ""))
+    if not title:
+        return None
+
+    # Build cache key from catalog-matching attributes
+    year = str(parsed.get("anime_year", "") or "")
+    season = str(parsed.get("anime_season", "") or "")
+    cache_key: CacheKey = (norm(title), year, season)
+
+    # Single scoring loop - works for both cache hit and miss
+    best_subtitle: Optional[Subtitles] = None
+    best_score = 0
+
+    async for subtitle in _iter_title_subtitles(
+        parsed, norm, semaphore, cache, cache_key
+    ):
+        score = subtitle.calculate_fitness(parsed)
+        if score > best_score:
+            best_score = score
+            best_subtitle = subtitle
+        elif score == best_score and best_subtitle is not None:
+            # Same score - pick the newer one (more recent date)
+            if subtitle.date > best_subtitle.date:
+                best_subtitle = subtitle
+
+    return best_subtitle

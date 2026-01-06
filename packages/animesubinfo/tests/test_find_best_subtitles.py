@@ -6,7 +6,7 @@ import httpx
 import pytest
 import respx
 
-from animesubinfo.api import find_best_subtitles
+from animesubinfo.api import find_best_subtitles, SubtitleCache
 
 
 @pytest.mark.asyncio
@@ -261,3 +261,272 @@ async def test_find_best_subtitles_search_http_error():
     # Should raise HTTPStatusError
     with pytest.raises(httpx.HTTPStatusError):
         await find_best_subtitles("[Group] Test Anime - 01.mkv")
+
+
+# --- Caching tests ---
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_find_best_subtitles_cache_populated_on_miss(fixtures_dir: Path):
+    """Test that cache is populated on first call (cache miss)."""
+    catalog_html = """<html><body>
+    <a href="szukaj_old.php?pTitle=org&amp;szukane=Higurashi+no+Naku+Koro+ni+Kai">Higurashi no Naku Koro ni Kai</a>
+    </body></html>"""
+
+    respx.get("http://animesub.info/katalog.php?S=h").mock(
+        return_value=httpx.Response(200, text=catalog_html)
+    )
+
+    with open(
+        fixtures_dir / "ansi_search_results.html", "r", encoding="iso-8859-2"
+    ) as f:
+        search_html = f.read()
+
+    respx.get(
+        url__regex=r"http://animesub\.info/szukaj_old\.php.*szukane=Higurashi\+no\+Naku\+Koro\+ni\+Kai.*"
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            text=search_html,
+            headers={"set-cookie": "ansi_sciagnij=test_cookie"},
+        )
+    )
+
+    # Start with empty cache
+    cache = SubtitleCache()
+    filename = "[Group] Higurashi no Naku Koro ni Kai - 01.mkv"
+
+    result = await find_best_subtitles(filename, cache=cache)
+
+    assert result is not None
+    # Cache should now have one entry
+    assert len(cache) == 1
+    # Cache key should be (normalized_title, year, season)
+    cache_key = cache.keys()[0]
+    assert "higurashi" in cache_key[0].lower()
+    # Cache should contain list of subtitles
+    cached_list = cache.get(cache_key)
+    assert isinstance(cached_list, list)
+    assert len(cached_list) > 0
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_find_best_subtitles_cache_hit_no_network(fixtures_dir: Path):
+    """Test that cache hit avoids network requests."""
+    # Set up mocks that will track calls
+    catalog_route = respx.get("http://animesub.info/katalog.php?S=h").mock(
+        return_value=httpx.Response(200, text="<html></html>")
+    )
+
+    search_route = respx.get(
+        url__regex=r"http://animesub\.info/szukaj_old\.php.*"
+    ).mock(return_value=httpx.Response(200, text="<html></html>"))
+
+    # Pre-populate cache with subtitle data
+    from animesubinfo.models import Subtitles, SubtitlesRating
+    from datetime import date
+
+    cache_key = ("higurashinonakukoronikai", "", "")  # normalized title
+    cached_subtitle = Subtitles(
+        id=12345,
+        episode=1,
+        to_episode=10,
+        original_title="Higurashi no Naku Koro ni Kai",
+        english_title="",
+        alt_title="",
+        date=date(2023, 1, 1),
+        format="ASS",
+        author="Test Author",
+        added_by="Tester",
+        size="100KB",
+        description="Test subtitle",
+        comment_count=0,
+        downloaded_times=100,
+        rating=SubtitlesRating(bad=0, average=0, very_good=5),
+    )
+    cache = SubtitleCache()
+    cache.set(cache_key, [cached_subtitle])
+
+    filename = "[Group] Higurashi no Naku Koro ni Kai - 05.mkv"
+    result = await find_best_subtitles(filename, cache=cache)
+
+    # Should find the cached subtitle
+    assert result is not None
+    assert result.id == 12345
+
+    # No network requests should have been made
+    assert catalog_route.call_count == 0
+    assert search_route.call_count == 0
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_find_best_subtitles_cache_different_episodes_same_title(
+    fixtures_dir: Path,
+):
+    """Test that different episodes of same title use cached results."""
+    catalog_html = """<html><body>
+    <a href="szukaj_old.php?pTitle=org&amp;szukane=Higurashi+no+Naku+Koro+ni+Kai">Higurashi no Naku Koro ni Kai</a>
+    </body></html>"""
+
+    catalog_route = respx.get("http://animesub.info/katalog.php?S=h").mock(
+        return_value=httpx.Response(200, text=catalog_html)
+    )
+
+    with open(
+        fixtures_dir / "ansi_search_results.html", "r", encoding="iso-8859-2"
+    ) as f:
+        search_html = f.read()
+
+    search_route = respx.get(
+        url__regex=r"http://animesub\.info/szukaj_old\.php.*szukane=Higurashi\+no\+Naku\+Koro\+ni\+Kai.*"
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            text=search_html,
+            headers={"set-cookie": "ansi_sciagnij=test_cookie"},
+        )
+    )
+
+    cache = SubtitleCache()
+
+    # First call - episode 1 (cache miss)
+    result1 = await find_best_subtitles(
+        "[Group] Higurashi no Naku Koro ni Kai - 01.mkv", cache=cache
+    )
+    assert result1 is not None
+
+    # Verify network calls were made
+    first_catalog_calls = catalog_route.call_count
+    first_search_calls = search_route.call_count
+    assert first_catalog_calls >= 1
+    assert first_search_calls >= 1
+
+    # Second call - episode 5 (should hit cache)
+    result2 = await find_best_subtitles(
+        "[Group] Higurashi no Naku Koro ni Kai - 05.mkv", cache=cache
+    )
+    assert result2 is not None
+
+    # No additional network calls should have been made
+    assert catalog_route.call_count == first_catalog_calls
+    assert search_route.call_count == first_search_calls
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_find_best_subtitles_cache_different_titles_separate_entries(
+    fixtures_dir: Path,
+):
+    """Test that different titles have separate cache entries."""
+    # Mock for Higurashi
+    catalog_html_h = """<html><body>
+    <a href="szukaj_old.php?pTitle=org&amp;szukane=Higurashi+no+Naku+Koro+ni+Kai">Higurashi no Naku Koro ni Kai</a>
+    </body></html>"""
+    respx.get("http://animesub.info/katalog.php?S=h").mock(
+        return_value=httpx.Response(200, text=catalog_html_h)
+    )
+
+    # Mock for Platinum End
+    catalog_html_p = """<html><body>
+    <a href="szukaj_old.php?pTitle=en&amp;szukane=Platinum+End">Platinum End</a>
+    </body></html>"""
+    respx.get("http://animesub.info/katalog.php?S=p").mock(
+        return_value=httpx.Response(200, text=catalog_html_p)
+    )
+
+    with open(
+        fixtures_dir / "ansi_search_results.html", "r", encoding="iso-8859-2"
+    ) as f:
+        search_html_h = f.read()
+
+    with open(
+        fixtures_dir / "ansi_search_results_one_page.html", "r", encoding="iso-8859-2"
+    ) as f:
+        search_html_p = f.read()
+
+    respx.get(
+        url__regex=r"http://animesub\.info/szukaj_old\.php.*szukane=Higurashi\+no\+Naku\+Koro\+ni\+Kai.*"
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            text=search_html_h,
+            headers={"set-cookie": "ansi_sciagnij=h_cookie"},
+        )
+    )
+
+    respx.get(
+        url__regex=r"http://animesub\.info/szukaj_old\.php.*szukane=Platinum\+End.*"
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            text=search_html_p,
+            headers={"set-cookie": "ansi_sciagnij=p_cookie"},
+        )
+    )
+
+    cache = SubtitleCache()
+
+    # Search for Higurashi
+    result1 = await find_best_subtitles(
+        "[Group] Higurashi no Naku Koro ni Kai - 01.mkv", cache=cache
+    )
+    assert result1 is not None
+
+    # Search for Platinum End
+    result2 = await find_best_subtitles(
+        "[SubsPlease] Platinum End - 01 [1080p].mkv", cache=cache
+    )
+    assert result2 is not None
+
+    # Cache should have two entries
+    assert len(cache) == 2
+
+    # Different titles
+    assert result1.original_title != result2.original_title
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_find_best_subtitles_cache_no_results_cached(fixtures_dir: Path):
+    """Test that empty results are cached to avoid re-fetching."""
+    catalog_html = """<html><body>
+    <a href="szukaj_old.php?pTitle=org&amp;szukane=Empty+Results">Empty Results</a>
+    </body></html>"""
+
+    catalog_route = respx.get("http://animesub.info/katalog.php?S=e").mock(
+        return_value=httpx.Response(200, text=catalog_html)
+    )
+
+    with open(
+        fixtures_dir / "ansi_search_results_blank.html", "r", encoding="iso-8859-2"
+    ) as f:
+        search_html = f.read()
+
+    search_route = respx.get(
+        url__regex=r"http://animesub\.info/szukaj_old\.php.*szukane=Empty\+Results.*"
+    ).mock(return_value=httpx.Response(200, text=search_html))
+
+    cache = SubtitleCache()
+
+    # First call - no results (cache miss)
+    result1 = await find_best_subtitles("[Group] Empty Results - 01.mkv", cache=cache)
+    assert result1 is None
+
+    first_catalog_calls = catalog_route.call_count
+    first_search_calls = search_route.call_count
+
+    # Second call - should hit cache (empty list)
+    result2 = await find_best_subtitles("[Group] Empty Results - 02.mkv", cache=cache)
+    assert result2 is None
+
+    # No additional network calls
+    assert catalog_route.call_count == first_catalog_calls
+    assert search_route.call_count == first_search_calls
+
+    # Cache should have one entry with empty list
+    assert len(cache) == 1
+    cache_key = cache.keys()[0]
+    assert cache.get(cache_key) == []

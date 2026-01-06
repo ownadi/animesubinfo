@@ -7,6 +7,7 @@ from .api import (  # noqa: E402
     find_best_subtitles,
     search,
 )
+from .cache import SubtitleCache  # noqa: E402
 from .exceptions import SecurityError, SessionDataError  # noqa: E402
 from .models import SortBy, Subtitles, SubtitlesRating, TitleType  # noqa: E402
 
@@ -41,6 +42,7 @@ __all__ = [
     "download_subtitles",
     "download_and_extract_subtitle",
     "ExtractedSubtitle",
+    "SubtitleCache",
     "Subtitles",
     "SubtitlesRating",
     "SortBy",
