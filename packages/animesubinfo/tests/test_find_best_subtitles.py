@@ -1,17 +1,17 @@
 """Tests for find_best_subtitles() function."""
 
+from pathlib import Path
+
 import httpx
 import pytest
 import respx
 
 from animesubinfo.api import find_best_subtitles
 
-from ..conftest import FIXTURES_DIR
-
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_find_best_subtitles_with_filename():
+async def test_find_best_subtitles_with_filename(fixtures_dir: Path):
     """Test finding best subtitles with a filename using real-world fixtures."""
     # Mock minimal catalog response with link to Higurashi search
     catalog_html = """<html><body>
@@ -24,7 +24,7 @@ async def test_find_best_subtitles_with_filename():
 
     # Load real search results fixture
     with open(
-        FIXTURES_DIR / "ansi_search_results.html", "r", encoding="iso-8859-2"
+        fixtures_dir / "ansi_search_results.html", "r", encoding="iso-8859-2"
     ) as f:
         search_html = f.read()
 
@@ -53,7 +53,7 @@ async def test_find_best_subtitles_with_filename():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_find_best_subtitles_with_parsed_dict():
+async def test_find_best_subtitles_with_parsed_dict(fixtures_dir: Path):
     """Test finding best subtitles with pre-parsed anitopy dict."""
     # Mock catalog response
     catalog_html = """<html><body>
@@ -66,7 +66,7 @@ async def test_find_best_subtitles_with_parsed_dict():
 
     # Load search results fixture
     with open(
-        FIXTURES_DIR / "ansi_search_results_one_page.html", "r", encoding="iso-8859-2"
+        fixtures_dir / "ansi_search_results_one_page.html", "r", encoding="iso-8859-2"
     ) as f:
         search_html = f.read()
 
@@ -93,10 +93,10 @@ async def test_find_best_subtitles_with_parsed_dict():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_find_best_subtitles_no_catalog_match():
+async def test_find_best_subtitles_no_catalog_match(fixtures_dir: Path):
     """Test when title is not found in catalog."""
     # Load real catalog (contains 'E' titles, won't match 'ZZZ...')
-    with open(FIXTURES_DIR / "ansi_catalog.html", "r", encoding="iso-8859-2") as f:
+    with open(fixtures_dir / "ansi_catalog.html", "r", encoding="iso-8859-2") as f:
         catalog_html = f.read()
 
     respx.get("http://animesub.info/katalog.php?S=z").mock(
@@ -109,7 +109,7 @@ async def test_find_best_subtitles_no_catalog_match():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_find_best_subtitles_no_search_results():
+async def test_find_best_subtitles_no_search_results(fixtures_dir: Path):
     """Test when search returns no results using real blank fixture."""
     # Mock minimal catalog response
     catalog_html = """<html><body>
@@ -122,7 +122,7 @@ async def test_find_best_subtitles_no_search_results():
 
     # Load blank search results fixture
     with open(
-        FIXTURES_DIR / "ansi_search_results_blank.html", "r", encoding="iso-8859-2"
+        fixtures_dir / "ansi_search_results_blank.html", "r", encoding="iso-8859-2"
     ) as f:
         search_html = f.read()
 
@@ -151,7 +151,7 @@ async def test_find_best_subtitles_no_title():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_find_best_subtitles_movie():
+async def test_find_best_subtitles_movie(fixtures_dir: Path):
     """Test finding best subtitles for a movie file."""
     # Mock catalog response
     catalog_html = """<html><body>
@@ -164,7 +164,7 @@ async def test_find_best_subtitles_movie():
 
     # Load movie search results fixture
     with open(
-        FIXTURES_DIR / "ansi_search_results_movie.html", "r", encoding="iso-8859-2"
+        fixtures_dir / "ansi_search_results_movie.html", "r", encoding="iso-8859-2"
     ) as f:
         search_html = f.read()
 
@@ -190,7 +190,7 @@ async def test_find_best_subtitles_movie():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_find_best_subtitles_single_page():
+async def test_find_best_subtitles_single_page(fixtures_dir: Path):
     """Test finding best subtitle with single page of results."""
     # Mock catalog response
     catalog_html = """<html><body>
@@ -203,7 +203,7 @@ async def test_find_best_subtitles_single_page():
 
     # Load single-page search results fixture
     with open(
-        FIXTURES_DIR / "ansi_search_results_one_page.html", "r", encoding="iso-8859-2"
+        fixtures_dir / "ansi_search_results_one_page.html", "r", encoding="iso-8859-2"
     ) as f:
         search_html = f.read()
 

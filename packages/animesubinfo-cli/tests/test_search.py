@@ -5,10 +5,12 @@ from collections.abc import AsyncGenerator
 from datetime import date
 
 from pytest_mock import MockerFixture
+from typer.testing import CliRunner
 
 from animesubinfo import SortBy, Subtitles, SubtitlesRating, TitleType
 from animesubinfo_cli.cli import app
-from conftest import MOCK_SEARCH, runner
+
+MOCK_SEARCH = "animesubinfo_cli.commands.search.search"
 
 
 async def _async_gen_subtitles(
@@ -22,7 +24,7 @@ async def _async_gen_subtitles(
 class TestSearchCommand:
     """Tests for the search command."""
 
-    def test_search_no_results(self, mocker: MockerFixture) -> None:
+    def test_search_no_results(self, mocker: MockerFixture, runner: CliRunner) -> None:
         """Test search with no results."""
         mock_search = mocker.patch(
             MOCK_SEARCH,
@@ -41,7 +43,7 @@ class TestSearchCommand:
         )
 
     def test_search_with_results(
-        self, mocker: MockerFixture, sample_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_subtitle: Subtitles
     ) -> None:
         """Test search returning results."""
         mocker.patch(
@@ -57,7 +59,9 @@ class TestSearchCommand:
         assert "100" in result.stdout
         assert "Found 1 subtitle(s)" in result.stdout
 
-    def test_search_multiple_results(self, mocker: MockerFixture) -> None:
+    def test_search_multiple_results(
+        self, mocker: MockerFixture, runner: CliRunner
+    ) -> None:
         """Test search returning multiple results."""
         subtitles = [
             Subtitles(
@@ -109,7 +113,7 @@ class TestSearchCommand:
         assert "Found 2 subtitle(s)" in result.stdout
 
     def test_search_with_sort_option(
-        self, mocker: MockerFixture, sample_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_subtitle: Subtitles
     ) -> None:
         """Test search with sort option."""
         mock_search = mocker.patch(
@@ -128,7 +132,7 @@ class TestSearchCommand:
         )
 
     def test_search_with_sort_short_option(
-        self, mocker: MockerFixture, sample_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_subtitle: Subtitles
     ) -> None:
         """Test search with short sort option."""
         mock_search = mocker.patch(
@@ -147,7 +151,7 @@ class TestSearchCommand:
         )
 
     def test_search_with_type_option(
-        self, mocker: MockerFixture, sample_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_subtitle: Subtitles
     ) -> None:
         """Test search with title type option."""
         mock_search = mocker.patch(
@@ -166,7 +170,7 @@ class TestSearchCommand:
         )
 
     def test_search_with_type_short_option(
-        self, mocker: MockerFixture, sample_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_subtitle: Subtitles
     ) -> None:
         """Test search with short type option."""
         mock_search = mocker.patch(
@@ -185,7 +189,7 @@ class TestSearchCommand:
         )
 
     def test_search_with_limit_option(
-        self, mocker: MockerFixture, sample_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_subtitle: Subtitles
     ) -> None:
         """Test search with page limit option."""
         mock_search = mocker.patch(
@@ -204,7 +208,7 @@ class TestSearchCommand:
         )
 
     def test_search_with_limit_short_option(
-        self, mocker: MockerFixture, sample_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_subtitle: Subtitles
     ) -> None:
         """Test search with short limit option."""
         mock_search = mocker.patch(
@@ -223,7 +227,7 @@ class TestSearchCommand:
         )
 
     def test_search_with_all_options(
-        self, mocker: MockerFixture, sample_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_subtitle: Subtitles
     ) -> None:
         """Test search with all options combined."""
         mock_search = mocker.patch(
@@ -253,34 +257,34 @@ class TestSearchCommand:
             page_limit=10,
         )
 
-    def test_search_invalid_sort_option(self) -> None:
+    def test_search_invalid_sort_option(self, runner: CliRunner) -> None:
         """Test search with invalid sort option."""
         result = runner.invoke(app, ["search", "Test", "--sort", "invalid"])
 
         assert result.exit_code != 0
         assert "invalid" in result.output.lower()
 
-    def test_search_invalid_type_option(self) -> None:
+    def test_search_invalid_type_option(self, runner: CliRunner) -> None:
         """Test search with invalid title type option."""
         result = runner.invoke(app, ["search", "Test", "--type", "invalid"])
 
         assert result.exit_code != 0
         assert "invalid" in result.output.lower()
 
-    def test_search_invalid_limit_zero(self) -> None:
+    def test_search_invalid_limit_zero(self, runner: CliRunner) -> None:
         """Test search with limit of 0."""
         result = runner.invoke(app, ["search", "Test", "--limit", "0"])
 
         assert result.exit_code != 0
 
-    def test_search_invalid_limit_negative(self) -> None:
+    def test_search_invalid_limit_negative(self, runner: CliRunner) -> None:
         """Test search with negative limit."""
         result = runner.invoke(app, ["search", "Test", "--limit", "-1"])
 
         assert result.exit_code != 0
 
     def test_search_movie_result(
-        self, mocker: MockerFixture, sample_movie_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_movie_subtitle: Subtitles
     ) -> None:
         """Test search displays movie correctly."""
         mocker.patch(
@@ -295,7 +299,7 @@ class TestSearchCommand:
         assert "67890" in result.stdout
 
     def test_search_pack_result(
-        self, mocker: MockerFixture, sample_pack_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_pack_subtitle: Subtitles
     ) -> None:
         """Test search displays episode pack correctly."""
         mocker.patch(
@@ -310,7 +314,7 @@ class TestSearchCommand:
         assert "11111" in result.stdout
 
     def test_search_case_insensitive_sort(
-        self, mocker: MockerFixture, sample_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_subtitle: Subtitles
     ) -> None:
         """Test sort option is case insensitive."""
         mock_search = mocker.patch(
@@ -329,7 +333,7 @@ class TestSearchCommand:
         )
 
     def test_search_case_insensitive_type(
-        self, mocker: MockerFixture, sample_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_subtitle: Subtitles
     ) -> None:
         """Test type option is case insensitive."""
         mock_search = mocker.patch(
@@ -347,7 +351,7 @@ class TestSearchCommand:
             page_limit=None,
         )
 
-    def test_search_missing_title_argument(self) -> None:
+    def test_search_missing_title_argument(self, runner: CliRunner) -> None:
         """Test search without required title argument."""
         result = runner.invoke(app, ["search"])
 
@@ -359,7 +363,7 @@ class TestSearchJsonOutput:
     """Tests for search command JSON output."""
 
     def test_search_json_output(
-        self, mocker: MockerFixture, sample_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_subtitle: Subtitles
     ) -> None:
         """Test search with --json flag."""
         mocker.patch(
@@ -379,7 +383,7 @@ class TestSearchJsonOutput:
         assert data[0]["rating"]["very_good"] == 10
 
     def test_search_json_short_flag(
-        self, mocker: MockerFixture, sample_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_subtitle: Subtitles
     ) -> None:
         """Test search with -j flag."""
         mocker.patch(
@@ -393,7 +397,9 @@ class TestSearchJsonOutput:
         data = json.loads(result.stdout)
         assert len(data) == 1
 
-    def test_search_json_no_results(self, mocker: MockerFixture) -> None:
+    def test_search_json_no_results(
+        self, mocker: MockerFixture, runner: CliRunner
+    ) -> None:
         """Test search JSON output with no results."""
         mocker.patch(
             MOCK_SEARCH,
@@ -410,7 +416,7 @@ class TestSearchJsonOutput:
 class TestSearchHelp:
     """Tests for search command help."""
 
-    def test_search_help(self) -> None:
+    def test_search_help(self, runner: CliRunner) -> None:
         """Test search --help displays usage information."""
         result = runner.invoke(app, ["search", "--help"])
 
@@ -421,7 +427,7 @@ class TestSearchHelp:
         assert "--limit" in result.stdout
         assert "--json" in result.stdout
 
-    def test_main_help_shows_search(self) -> None:
+    def test_main_help_shows_search(self, runner: CliRunner) -> None:
         """Test main --help shows search command."""
         result = runner.invoke(app, ["--help"])
 

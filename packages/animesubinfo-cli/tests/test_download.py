@@ -6,9 +6,11 @@ from typing import AsyncIterator
 
 import pytest
 from pytest_mock import MockerFixture
+from typer.testing import CliRunner
 
 from animesubinfo_cli.cli import app
-from conftest import MOCK_DOWNLOAD_SUBTITLES, runner
+
+MOCK_DOWNLOAD_SUBTITLES = "animesubinfo_cli.commands.download.download_subtitles"
 
 
 class MockDownloadResult:
@@ -30,7 +32,9 @@ class MockDownloadResult:
 class TestDownloadCommand:
     """Tests for the download command."""
 
-    def test_download_success(self, mocker: MockerFixture, tmp_path: Path) -> None:
+    def test_download_success(
+        self, mocker: MockerFixture, runner: CliRunner, tmp_path: Path
+    ) -> None:
         """Test successful download."""
 
         @asynccontextmanager
@@ -49,7 +53,11 @@ class TestDownloadCommand:
         assert (tmp_path / "output.zip").read_bytes() == b"fake zip content"
 
     def test_download_uses_original_filename(
-        self, mocker: MockerFixture, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self,
+        mocker: MockerFixture,
+        runner: CliRunner,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test download uses original filename when no output specified."""
 
@@ -67,7 +75,7 @@ class TestDownloadCommand:
         assert (tmp_path / "original_name.zip").exists()
 
     def test_download_with_output_path(
-        self, mocker: MockerFixture, tmp_path: Path
+        self, mocker: MockerFixture, runner: CliRunner, tmp_path: Path
     ) -> None:
         """Test download with custom output path."""
 
@@ -86,7 +94,7 @@ class TestDownloadCommand:
         assert custom_path.exists()
         assert custom_path.read_bytes() == b"data"
 
-    def test_download_missing_id_argument(self) -> None:
+    def test_download_missing_id_argument(self, runner: CliRunner) -> None:
         """Test download without required ID argument."""
         result = runner.invoke(app, ["download"])
 
@@ -97,7 +105,7 @@ class TestDownloadCommand:
 class TestDownloadHelp:
     """Tests for download command help."""
 
-    def test_download_help(self) -> None:
+    def test_download_help(self, runner: CliRunner) -> None:
         """Test download --help displays usage information."""
         result = runner.invoke(app, ["download", "--help"])
 
@@ -106,7 +114,7 @@ class TestDownloadHelp:
         assert "SUBTITLE_ID" in result.stdout
         assert "--output" in result.stdout
 
-    def test_main_help_shows_download(self) -> None:
+    def test_main_help_shows_download(self, runner: CliRunner) -> None:
         """Test main --help shows download command."""
         result = runner.invoke(app, ["--help"])
 

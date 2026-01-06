@@ -5,16 +5,18 @@ from datetime import date
 from unittest.mock import AsyncMock
 
 from pytest_mock import MockerFixture
+from typer.testing import CliRunner
 
 from animesubinfo import Subtitles, SubtitlesRating
 from animesubinfo_cli.cli import app
-from conftest import MOCK_FIND_BEST_SUBTITLES, runner
+
+MOCK_FIND_BEST_SUBTITLES = "animesubinfo_cli.commands.find.find_best_subtitles"
 
 
 class TestFindCommand:
     """Tests for the find command."""
 
-    def test_find_no_match(self, mocker: MockerFixture) -> None:
+    def test_find_no_match(self, mocker: MockerFixture, runner: CliRunner) -> None:
         """Test find with no matching subtitle."""
         mock_find = mocker.patch(
             MOCK_FIND_BEST_SUBTITLES,
@@ -30,7 +32,7 @@ class TestFindCommand:
         mock_find.assert_called_once_with("[SubGroup] Anime - 01 [1080p].mkv")
 
     def test_find_with_match(
-        self, mocker: MockerFixture, sample_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_subtitle: Subtitles
     ) -> None:
         """Test find returning a match."""
         mock_find = mocker.patch(
@@ -47,7 +49,7 @@ class TestFindCommand:
         mock_find.assert_called_once_with("[SubGroup] Test Anime - 01 [1080p].mkv")
 
     def test_find_movie(
-        self, mocker: MockerFixture, sample_movie_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_movie_subtitle: Subtitles
     ) -> None:
         """Test find with movie result."""
         mocker.patch(
@@ -63,7 +65,7 @@ class TestFindCommand:
         assert "67890" in result.stdout
 
     def test_find_pack(
-        self, mocker: MockerFixture, sample_pack_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_pack_subtitle: Subtitles
     ) -> None:
         """Test find with pack result."""
         mocker.patch(
@@ -80,7 +82,9 @@ class TestFindCommand:
         assert "1-12" in result.stdout
         assert "11111" in result.stdout
 
-    def test_find_complex_filename(self, mocker: MockerFixture) -> None:
+    def test_find_complex_filename(
+        self, mocker: MockerFixture, runner: CliRunner
+    ) -> None:
         """Test find with complex anime filename."""
         subtitle = Subtitles(
             id=55555,
@@ -116,7 +120,7 @@ class TestFindCommand:
         assert "Complex Anime Title" in result.stdout
         mock_find.assert_called_once_with(complex_filename)
 
-    def test_find_missing_filename_argument(self) -> None:
+    def test_find_missing_filename_argument(self, runner: CliRunner) -> None:
         """Test find without required filename argument."""
         result = runner.invoke(app, ["find"])
 
@@ -124,7 +128,7 @@ class TestFindCommand:
         assert "Missing argument" in result.output
 
     def test_find_displays_all_columns(
-        self, mocker: MockerFixture, sample_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_subtitle: Subtitles
     ) -> None:
         """Test find displays all table columns."""
         mocker.patch(
@@ -147,7 +151,7 @@ class TestFindJsonOutput:
     """Tests for find command JSON output."""
 
     def test_find_json_output(
-        self, mocker: MockerFixture, sample_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_subtitle: Subtitles
     ) -> None:
         """Test find with --json flag."""
         mocker.patch(
@@ -166,7 +170,7 @@ class TestFindJsonOutput:
         assert data["rating"]["very_good"] == 10
 
     def test_find_json_short_flag(
-        self, mocker: MockerFixture, sample_subtitle: Subtitles
+        self, mocker: MockerFixture, runner: CliRunner, sample_subtitle: Subtitles
     ) -> None:
         """Test find with -j flag."""
         mocker.patch(
@@ -181,7 +185,9 @@ class TestFindJsonOutput:
         data = json.loads(result.stdout)
         assert data["id"] == 12345
 
-    def test_find_json_no_match(self, mocker: MockerFixture) -> None:
+    def test_find_json_no_match(
+        self, mocker: MockerFixture, runner: CliRunner
+    ) -> None:
         """Test find JSON output with no match."""
         mocker.patch(
             MOCK_FIND_BEST_SUBTITLES,
@@ -199,7 +205,7 @@ class TestFindJsonOutput:
 class TestFindHelp:
     """Tests for find command help."""
 
-    def test_find_help(self) -> None:
+    def test_find_help(self, runner: CliRunner) -> None:
         """Test find --help displays usage information."""
         result = runner.invoke(app, ["find", "--help"])
 
@@ -208,7 +214,7 @@ class TestFindHelp:
         assert "FILE" in result.stdout
         assert "--json" in result.stdout
 
-    def test_main_help_shows_find(self) -> None:
+    def test_main_help_shows_find(self, runner: CliRunner) -> None:
         """Test main --help shows find command."""
         result = runner.invoke(app, ["--help"])
 

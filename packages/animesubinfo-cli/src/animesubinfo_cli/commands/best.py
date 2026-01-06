@@ -23,6 +23,10 @@ def best(
 
 async def _best_async(file: Path) -> None:
     """Async implementation of best command."""
+    if not file.exists():
+        console.print(f"[red]Error:[/red] File not found: {file}")
+        raise typer.Exit(1)
+
     filename = file.name
 
     with console.status(f"[bold green]Finding best subtitle for: {filename}"):

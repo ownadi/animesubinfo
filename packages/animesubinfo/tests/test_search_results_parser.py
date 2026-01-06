@@ -1,14 +1,14 @@
 from datetime import date
+from pathlib import Path
 
 from animesubinfo.parsers import SearchResultsParser
 
-from ...conftest import FIXTURES_DIR
-
 
 def prepare_search_results_parser(
+    fixtures_dir: Path,
     fixture_name: str = "ansi_search_results.html",
 ) -> SearchResultsParser:
-    with open(FIXTURES_DIR / fixture_name, "r", encoding="iso-8859-2") as file:
+    with open(fixtures_dir / fixture_name, "r", encoding="iso-8859-2") as file:
         html_content = file.read()
 
     parser = SearchResultsParser()
@@ -16,14 +16,14 @@ def prepare_search_results_parser(
     return parser
 
 
-def test_search_results_number_of_pages():
-    parser = prepare_search_results_parser()
+def test_search_results_number_of_pages(fixtures_dir: Path):
+    parser = prepare_search_results_parser(fixtures_dir)
 
     assert parser.number_of_pages == 5
 
 
-def test_search_results_first_subtitles():
-    parser = prepare_search_results_parser()
+def test_search_results_first_subtitles(fixtures_dir: Path):
+    parser = prepare_search_results_parser(fixtures_dir)
 
     first_subtitles = parser.subtitles_list[0]
 
@@ -51,8 +51,8 @@ def test_search_results_first_subtitles():
     assert first_subtitles.rating.very_good == 100
 
 
-def test_search_results_middle_subtitles():
-    parser = prepare_search_results_parser()
+def test_search_results_middle_subtitles(fixtures_dir: Path):
+    parser = prepare_search_results_parser(fixtures_dir)
 
     middle_subtitles = parser.subtitles_list[5]
 
@@ -77,8 +77,8 @@ def test_search_results_middle_subtitles():
     assert middle_subtitles.rating.very_good == 100
 
 
-def test_search_results_last_subtitles():
-    parser = prepare_search_results_parser()
+def test_search_results_last_subtitles(fixtures_dir: Path):
+    parser = prepare_search_results_parser(fixtures_dir)
 
     last_subtitles = parser.subtitles_list[-1]
 
@@ -103,8 +103,8 @@ def test_search_results_last_subtitles():
     assert last_subtitles.rating.very_good == 100
 
 
-def test_search_results_uncommon_rating():
-    parser = prepare_search_results_parser()
+def test_search_results_uncommon_rating(fixtures_dir: Path):
+    parser = prepare_search_results_parser(fixtures_dir)
 
     uncommon_rating_subtitles = next(
         (s for s in parser.subtitles_list if s.id == 19748), None
@@ -116,9 +116,9 @@ def test_search_results_uncommon_rating():
     assert uncommon_rating_subtitles.rating.very_good == 87
 
 
-def test_search_results_movie():
+def test_search_results_movie(fixtures_dir: Path):
     parser = prepare_search_results_parser(
-        fixture_name="ansi_search_results_movie.html"
+        fixtures_dir, fixture_name="ansi_search_results_movie.html"
     )
 
     assert parser.number_of_pages == 1
@@ -146,17 +146,19 @@ def test_search_results_movie():
     assert movie_subtitles.rating.very_good == 0
 
 
-def test_search_results_large_pages_count():
+def test_search_results_large_pages_count(fixtures_dir: Path):
     parser = prepare_search_results_parser(
-        fixture_name="ansi_search_results_large_pages_count.html"
+        fixtures_dir, fixture_name="ansi_search_results_large_pages_count.html"
     )
 
     assert parser.number_of_pages == 55
     assert len(parser.subtitles_list) == 30
 
 
-def test_search_results_pack():
-    parser = prepare_search_results_parser(fixture_name="ansi_search_results_pack.html")
+def test_search_results_pack(fixtures_dir: Path):
+    parser = prepare_search_results_parser(
+        fixtures_dir, fixture_name="ansi_search_results_pack.html"
+    )
 
     pack_subs = next((s for s in parser.subtitles_list if s.id == 14480), None)
 
@@ -183,27 +185,27 @@ def test_search_results_pack():
     assert pack_subs.rating.very_good == 0
 
 
-def test_search_results_one_page():
+def test_search_results_one_page(fixtures_dir: Path):
     parser = prepare_search_results_parser(
-        fixture_name="ansi_search_results_one_page.html"
+        fixtures_dir, fixture_name="ansi_search_results_one_page.html"
     )
 
     assert parser.number_of_pages == 1
     assert len(parser.subtitles_list) == 14
 
 
-def test_search_results_blank():
+def test_search_results_blank(fixtures_dir: Path):
     parser = prepare_search_results_parser(
-        fixture_name="ansi_search_results_blank.html"
+        fixtures_dir, fixture_name="ansi_search_results_blank.html"
     )
 
     assert parser.number_of_pages == 0
     assert len(parser.subtitles_list) == 0
 
 
-def test_search_results_with_cookie():
+def test_search_results_with_cookie(fixtures_dir: Path):
     with open(
-        FIXTURES_DIR / "ansi_search_results.html", "r", encoding="iso-8859-2"
+        fixtures_dir / "ansi_search_results.html", "r", encoding="iso-8859-2"
     ) as file:
         html_content = file.read()
 

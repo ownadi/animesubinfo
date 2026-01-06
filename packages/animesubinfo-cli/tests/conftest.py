@@ -7,15 +7,11 @@ from typer.testing import CliRunner
 
 from animesubinfo import Subtitles, SubtitlesRating
 
-# Shared runner with colors disabled for consistent CI output
-runner = CliRunner(env={"NO_COLOR": "1", "TERM": "dumb"})
 
-# Mock target paths
-MOCK_SEARCH = "animesubinfo_cli.commands.search.search"
-MOCK_FIND_BEST_SUBTITLES = "animesubinfo_cli.commands.find.find_best_subtitles"
-MOCK_DOWNLOAD_SUBTITLES = "animesubinfo_cli.commands.download.download_subtitles"
-MOCK_BEST_FIND = "animesubinfo_cli.commands.best.find_best_subtitles"
-MOCK_BEST_DOWNLOAD = "animesubinfo_cli.commands.best.download_and_extract_subtitle"
+@pytest.fixture
+def runner() -> CliRunner:
+    """Shared runner with colors disabled for consistent CI output."""
+    return CliRunner(env={"NO_COLOR": "1", "TERM": "dumb"})
 
 
 @pytest.fixture

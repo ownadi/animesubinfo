@@ -2,4 +2,10 @@
 
 from pathlib import Path
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
+import pytest
+
+
+@pytest.fixture
+def fixtures_dir() -> Path:
+    """Return the fixtures directory path."""
+    return Path(__file__).parent / "fixtures"

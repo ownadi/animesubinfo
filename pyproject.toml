@@ -1,2 +1,7 @@
 [tool.uv.workspace]
 members = ["packages/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["packages/animesubinfo/tests", "packages/animesubinfo-cli/tests"]
+pythonpath = ["packages/animesubinfo/tests", "packages/animesubinfo-cli/tests"]
+asyncio_mode = "strict"

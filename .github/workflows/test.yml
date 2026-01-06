@@ -63,7 +63,8 @@ jobs:
         needs.detect-changes.outputs.workspace == 'true' ||
         github.event_name == 'push' ||
         github.event_name == 'workflow_call'
-      run: uv run --package animesubinfo pytest
+      working-directory: packages/animesubinfo
+      run: uv run pytest
 
     - name: Run tests for animesubinfo-cli
       # Run if: CLI changed, library changed (dependency), workspace changed, push to main, or called from another workflow
@@ -73,4 +74,5 @@ jobs:
         needs.detect-changes.outputs.workspace == 'true' ||
         github.event_name == 'push' ||
         github.event_name == 'workflow_call'
-      run: uv run --package animesubinfo-cli pytest
+      working-directory: packages/animesubinfo-cli
+      run: uv run pytest

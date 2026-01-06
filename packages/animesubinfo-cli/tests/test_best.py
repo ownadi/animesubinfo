@@ -5,10 +5,13 @@ from unittest.mock import AsyncMock
 
 import pytest
 from pytest_mock import MockerFixture
+from typer.testing import CliRunner
 
 from animesubinfo import ExtractedSubtitle, Subtitles
 from animesubinfo_cli.cli import app
-from conftest import MOCK_BEST_DOWNLOAD, MOCK_BEST_FIND, runner
+
+MOCK_BEST_FIND = "animesubinfo_cli.commands.best.find_best_subtitles"
+MOCK_BEST_DOWNLOAD = "animesubinfo_cli.commands.best.download_and_extract_subtitle"
 
 
 class TestBestCommand:
@@ -17,6 +20,7 @@ class TestBestCommand:
     def test_best_success(
         self,
         mocker: MockerFixture,
+        runner: CliRunner,
         tmp_path: Path,
         sample_subtitle: Subtitles,
         monkeypatch: pytest.MonkeyPatch,
@@ -51,6 +55,7 @@ class TestBestCommand:
     def test_best_no_match(
         self,
         mocker: MockerFixture,
+        runner: CliRunner,
         tmp_path: Path,
     ) -> None:
         """Test best with no matching subtitle."""
@@ -60,14 +65,29 @@ class TestBestCommand:
             return_value=None,
         )
 
-        result = runner.invoke(app, ["best", str(tmp_path / "unknown.mkv")])
+        video_file = tmp_path / "unknown.mkv"
+        video_file.touch()
+
+        result = runner.invoke(app, ["best", str(video_file)])
 
         assert result.exit_code == 1
         assert "No matching subtitle found" in result.stdout
 
+    def test_best_file_not_found(
+        self,
+        runner: CliRunner,
+        tmp_path: Path,
+    ) -> None:
+        """Test best with non-existent file."""
+        result = runner.invoke(app, ["best", str(tmp_path / "nonexistent.mkv")])
+
+        assert result.exit_code == 1
+        assert "File not found" in result.stdout
+
     def test_best_preserves_video_name(
         self,
         mocker: MockerFixture,
+        runner: CliRunner,
         tmp_path: Path,
         sample_subtitle: Subtitles,
         monkeypatch: pytest.MonkeyPatch,
@@ -99,6 +119,7 @@ class TestBestCommand:
     def test_best_shows_subtitle_id(
         self,
         mocker: MockerFixture,
+        runner: CliRunner,
         tmp_path: Path,
         sample_subtitle: Subtitles,
         monkeypatch: pytest.MonkeyPatch,
@@ -124,7 +145,7 @@ class TestBestCommand:
         assert result.exit_code == 0
         assert "12345" in result.stdout  # sample_subtitle.id
 
-    def test_best_missing_file_argument(self) -> None:
+    def test_best_missing_file_argument(self, runner: CliRunner) -> None:
         """Test best without required file argument."""
         result = runner.invoke(app, ["best"])
 
@@ -135,7 +156,7 @@ class TestBestCommand:
 class TestBestHelp:
     """Tests for best command help."""
 
-    def test_best_help(self) -> None:
+    def test_best_help(self, runner: CliRunner) -> None:
         """Test best --help displays usage information."""
         result = runner.invoke(app, ["best", "--help"])
 
@@ -143,7 +164,7 @@ class TestBestHelp:
         assert "Find and download the best matching subtitle" in result.stdout
         assert "FILE" in result.stdout
 
-    def test_main_help_shows_best(self) -> None:
+    def test_main_help_shows_best(self, runner: CliRunner) -> None:
         """Test main --help shows best command."""
         result = runner.invoke(app, ["--help"])
 
