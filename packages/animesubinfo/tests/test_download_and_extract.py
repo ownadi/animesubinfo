@@ -1,9 +1,10 @@
 """Tests for download_and_extract_subtitle function."""
 
 import io
+import asyncio
 import zipfile
 from contextlib import asynccontextmanager
-from typing import Any, cast
+from typing import Any, Optional, cast
 from unittest.mock import patch
 
 import anitopy
@@ -36,7 +37,7 @@ def mock_download_subtitles(zip_content: bytes):
     """Create a mock for download_subtitles that returns ZIP content."""
 
     @asynccontextmanager
-    async def _mock_download(subtitle_id: int):
+    async def _mock_download(subtitle_id: int, *, semaphore: Optional[asyncio.Semaphore]=None):
         """Mock download_subtitles context manager."""
 
         async def async_iter():

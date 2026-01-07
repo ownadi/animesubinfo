@@ -3,7 +3,7 @@
 import httpx
 import pytest
 import respx
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch
 
 from animesubinfo.api import download_subtitles, SessionData
 from animesubinfo.exceptions import SecurityError, SessionDataError
@@ -14,7 +14,7 @@ from animesubinfo.exceptions import SecurityError, SessionDataError
 async def test_download_subtitles_basic():
     """Test basic download with filename and content."""
     # Mock search_by_id to return session data
-    with patch("animesubinfo.api.search_by_id", new_callable=AsyncMock) as mock_search:
+    with patch("animesubinfo.api._search_by_id", new_callable=AsyncMock) as mock_search:
         mock_search.return_value = SessionData(
             sh="test_sh_value", ansi_cookie="test_cookie"
         )
@@ -47,15 +47,15 @@ async def test_download_subtitles_basic():
 
             assert content == b"fake zip content"
 
-        # Verify search_by_id was called
-        mock_search.assert_called_once_with(12345)
+        # Verify _search_by_id was called
+        mock_search.assert_called_once_with(12345, ANY)
 
 
 @pytest.mark.asyncio
 @respx.mock
 async def test_download_subtitles_filename_with_quotes():
     """Test parsing filename with quotes in Content-Disposition."""
-    with patch("animesubinfo.api.search_by_id", new_callable=AsyncMock) as mock_search:
+    with patch("animesubinfo.api._search_by_id", new_callable=AsyncMock) as mock_search:
         mock_search.return_value = SessionData(sh="sh_value", ansi_cookie="cookie")
 
         respx.post("http://animesub.info/sciagnij.php").mock(
@@ -74,7 +74,7 @@ async def test_download_subtitles_filename_with_quotes():
 @respx.mock
 async def test_download_subtitles_http_error():
     """Test handling of HTTP errors."""
-    with patch("animesubinfo.api.search_by_id", new_callable=AsyncMock) as mock_search:
+    with patch("animesubinfo.api._search_by_id", new_callable=AsyncMock) as mock_search:
         mock_search.return_value = SessionData(sh="sh_value", ansi_cookie="cookie")
 
         respx.post("http://animesub.info/sciagnij.php").mock(
@@ -90,7 +90,7 @@ async def test_download_subtitles_http_error():
 @respx.mock
 async def test_download_subtitles_early_exit():
     """Test that resources are cleaned up when exiting context early."""
-    with patch("animesubinfo.api.search_by_id", new_callable=AsyncMock) as mock_search:
+    with patch("animesubinfo.api._search_by_id", new_callable=AsyncMock) as mock_search:
         mock_search.return_value = SessionData(sh="sh_value", ansi_cookie="cookie")
 
         respx.post("http://animesub.info/sciagnij.php").mock(
@@ -112,7 +112,7 @@ async def test_download_subtitles_early_exit():
 @pytest.mark.asyncio
 async def test_download_subtitles_session_data_error():
     """Test SessionDataError when session data cannot be obtained."""
-    with patch("animesubinfo.api.search_by_id", new_callable=AsyncMock) as mock_search:
+    with patch("animesubinfo.api._search_by_id", new_callable=AsyncMock) as mock_search:
         # Mock search_by_id to return None (no session data)
         mock_search.return_value = None
 
@@ -129,7 +129,7 @@ async def test_download_subtitles_session_data_error():
 @respx.mock
 async def test_download_subtitles_security_error():
     """Test SecurityError when AnimeSub.info returns HTML instead of ZIP."""
-    with patch("animesubinfo.api.search_by_id", new_callable=AsyncMock) as mock_search:
+    with patch("animesubinfo.api._search_by_id", new_callable=AsyncMock) as mock_search:
         mock_search.return_value = SessionData(
             sh="test_sh_value_12345678901234567890",
             ansi_cookie="test_cookie_12345678901234567890",

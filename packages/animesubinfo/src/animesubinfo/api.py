@@ -26,6 +26,43 @@ from .parsers.catalog_parser import CatalogParser
 from .parsers.search_results_parser import SearchResultsParser
 from .utils import normalize as default_normalize
 
+# Default semaphore for limiting concurrent requests (shared across all functions)
+_default_semaphore: Optional[asyncio.Semaphore] = None
+_default_concurrency: int = 3
+
+
+def set_default_concurrency(limit: int) -> None:
+    """Set the default concurrency limit for network requests.
+
+    This affects all functions that make concurrent requests (search,
+    find_best_subtitles) when no explicit semaphore is provided.
+
+    Args:
+        limit: Maximum number of concurrent requests (must be >= 1)
+
+    Example:
+        ```
+        from animesubinfo import set_default_concurrency
+
+        # Allow up to 5 concurrent requests
+        set_default_concurrency(5)
+        ```
+    """
+    global _default_concurrency, _default_semaphore
+    if limit < 1:
+        raise ValueError("Concurrency limit must be at least 1")
+    _default_concurrency = limit
+    _default_semaphore = None  # Reset so next call creates new semaphore
+
+
+def _get_default_semaphore() -> asyncio.Semaphore:
+    """Get or create the shared default semaphore."""
+    global _default_semaphore
+    if _default_semaphore is None:
+        _default_semaphore = asyncio.Semaphore(_default_concurrency)
+
+    return _default_semaphore
+
 
 class DownloadResult(NamedTuple):
     """Download result containing subtitle file metadata and streaming content.
@@ -110,9 +147,9 @@ async def search(
                 yield subtitle
             return
 
-        # Use provided semaphore or create default
+        # Use provided semaphore or shared default
         if semaphore is None:
-            semaphore = asyncio.Semaphore(3)
+            semaphore = _get_default_semaphore()
 
         async def fetch_and_parse_page(
             page_num: int,
@@ -160,53 +197,55 @@ async def search(
                     next_page_to_yield += 1
 
 
-async def search_by_id(subtitle_id: int) -> Optional[SessionData]:
+async def _search_by_id(
+    subtitle_id: int,
+    semaphore: asyncio.Semaphore,
+) -> Optional[SessionData]:
     """Search for a subtitle by ID and extract fresh session data.
 
     Args:
         subtitle_id: The ID of the subtitle to search for
+        semaphore: Semaphore for limiting concurrent requests
 
     Returns:
         SessionData with sh and ansi_cookie if found, None otherwise
-
-    Example:
-        ```
-        session = await search_by_id(12345)
-        if session:
-            async with download_subtitles(subtitle_id, session) as download:
-                ...
-        ```
     """
     base_url = "http://animesub.info/szukaj.php"
 
-    async with httpx.AsyncClient(default_encoding="iso-8859-2") as client:
-        params = {"ID": str(subtitle_id)}
+    async with semaphore:
+        async with httpx.AsyncClient(default_encoding="iso-8859-2") as client:
+            params = {"ID": str(subtitle_id)}
 
-        async with client.stream("GET", base_url, params=params) as response:
-            response.raise_for_status()
+            async with client.stream("GET", base_url, params=params) as response:
+                response.raise_for_status()
 
-            # Extract ansi_sciagnij cookie
-            ansi_cookie = response.cookies.get("ansi_sciagnij", "")
+                # Extract ansi_sciagnij cookie
+                ansi_cookie = response.cookies.get("ansi_sciagnij", "")
 
-            # Parse response to extract sh value
-            parser = SearchResultsParser(ansi_cookie=ansi_cookie)
-            async for chunk in response.aiter_text():
-                parser.feed(chunk)
+                # Parse response to extract sh value
+                parser = SearchResultsParser(ansi_cookie=ansi_cookie)
+                async for chunk in response.aiter_text():
+                    parser.feed(chunk)
 
-        # Get the sh value for this subtitle id
-        sh = parser.get_sh_for_id(subtitle_id)
-        if not sh or not ansi_cookie:
-            return None
+            # Get the sh value for this subtitle id
+            sh = parser.get_sh_for_id(subtitle_id)
+            if not sh or not ansi_cookie:
+                return None
 
-        return SessionData(sh=sh, ansi_cookie=ansi_cookie)
+            return SessionData(sh=sh, ansi_cookie=ansi_cookie)
 
 
 @asynccontextmanager
-async def download_subtitles(subtitle_id: int) -> AsyncIterator[DownloadResult]:
+async def download_subtitles(
+    subtitle_id: int,
+    *,
+    semaphore: Optional[asyncio.Semaphore] = None,
+) -> AsyncIterator[DownloadResult]:
     """Download subtitles as a ZIP file from AnimeSub.info.
 
     Args:
         subtitle_id: The ID of the subtitle to download
+        semaphore: Semaphore for limiting concurrent requests (default: shared)
 
     Yields:
         DownloadResult with filename, content iterator, and content_length
@@ -224,52 +263,57 @@ async def download_subtitles(subtitle_id: int) -> AsyncIterator[DownloadResult]:
                     f.write(chunk)
         ```
     """
+    if semaphore is None:
+        semaphore = _get_default_semaphore()
+
     # Get fresh session data by searching for this subtitle
-    session = await search_by_id(subtitle_id)
+    session = await _search_by_id(subtitle_id, semaphore)
     if not session:
         raise SessionDataError(subtitle_id)
 
     url = "http://animesub.info/sciagnij.php"
 
-    client = httpx.AsyncClient(
-        cookies={"ansi_sciagnij": session.ansi_cookie}, default_encoding="iso-8859-2"
-    )
-    response = None
-    try:
-        response = await client.post(
-            url,
-            data={"id": str(subtitle_id), "sh": session.sh},
+    async with semaphore:
+        client = httpx.AsyncClient(
+            cookies={"ansi_sciagnij": session.ansi_cookie},
+            default_encoding="iso-8859-2",
         )
-        response.raise_for_status()
+        response = None
+        try:
+            response = await client.post(
+                url,
+                data={"id": str(subtitle_id), "sh": session.sh},
+            )
+            response.raise_for_status()
 
-        # Check for security error (HTML response instead of ZIP)
-        content_type = response.headers.get("content-type", "")
-        if "text/html" in content_type:
-            raise SecurityError(subtitle_id, session.sh, session.ansi_cookie)
+            # Check for security error (HTML response instead of ZIP)
+            content_type = response.headers.get("content-type", "")
+            if "text/html" in content_type:
+                raise SecurityError(subtitle_id, session.sh, session.ansi_cookie)
 
-        # Extract filename from Content-Disposition header
-        filename = "subtitle.zip"  # default fallback
-        content_disposition = response.headers.get("content-disposition", "")
-        if content_disposition:
-            # Parse filename from header like: attachment; filename="file.zip"
-            match = re.search(r'filename="?([^"]+)"?', content_disposition)
-            if match:
-                filename = match.group(1)
+            # Extract filename from Content-Disposition header
+            filename = "subtitle.zip"  # default fallback
+            content_disposition = response.headers.get("content-disposition", "")
+            if content_disposition:
+                # Parse filename from header like: attachment; filename="file.zip"
+                match = re.search(r'filename="?([^"]+)"?', content_disposition)
+                if match:
+                    filename = match.group(1)
 
-        # Extract content length
-        content_length = None
-        if "content-length" in response.headers:
-            content_length = int(response.headers["content-length"])
+            # Extract content length
+            content_length = None
+            if "content-length" in response.headers:
+                content_length = int(response.headers["content-length"])
 
-        yield DownloadResult(
-            filename=filename,
-            content=response.aiter_bytes(),
-            content_length=content_length,
-        )
-    finally:
-        if response is not None:
-            await response.aclose()
-        await client.aclose()
+            yield DownloadResult(
+                filename=filename,
+                content=response.aiter_bytes(),
+                content_length=content_length,
+            )
+        finally:
+            if response is not None:
+                await response.aclose()
+            await client.aclose()
 
 
 def _calculate_file_fitness(
@@ -399,6 +443,7 @@ async def download_and_extract_subtitle(
     subtitle_id: int,
     *,
     normalizer: Optional[Callable[[str], str]] = None,
+    semaphore: Optional[asyncio.Semaphore] = None,
 ) -> ExtractedSubtitle:
     """Download subtitle ZIP and extract the best matching file.
 
@@ -412,6 +457,7 @@ async def download_and_extract_subtitle(
         filename_or_dict: Target filename string or anitopy-parsed dict to match
         subtitle_id: ID of the subtitle to download
         normalizer: Optional custom normalization function
+        semaphore: Semaphore for limiting concurrent requests (default: shared)
 
     Returns:
         ExtractedSubtitle with filename and content of the best matching file.
@@ -449,7 +495,7 @@ async def download_and_extract_subtitle(
         target_parsed = filename_or_dict
 
     # Download the ZIP
-    async with download_subtitles(subtitle_id) as download:
+    async with download_subtitles(subtitle_id, semaphore=semaphore) as download:
         # Collect ZIP content in memory
         zip_content = io.BytesIO()
         async for chunk in download.content:
@@ -615,9 +661,9 @@ async def _fetch_title_subtitles(
             return
 
         # Multiple pages - fetch concurrently
-        # Use provided semaphore or create default
+        # Use provided semaphore or shared default
         if semaphore is None:
-            semaphore = asyncio.Semaphore(3)
+            semaphore = _get_default_semaphore()
 
         async def fetch_and_parse_page(page_num: int) -> List[Subtitles]:
             """Fetch and parse a single page with concurrency limit."""

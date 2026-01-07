@@ -24,6 +24,7 @@ from animesubinfo import (
     find_best_subtitles,
     download_subtitles,
     download_and_extract_subtitle,
+    set_default_concurrency,
     ExtractedSubtitle,
     SubtitleCache,
     SortBy,
@@ -209,12 +210,20 @@ Find the best matching subtitles for an anime file.
 **Returns:**
 - `Subtitles | None`: Best matching subtitle or None if not found
 
-### `download_subtitles(subtitle_id)`
+### `set_default_concurrency(limit)`
+
+Set the default concurrency limit for network requests.
+
+**Parameters:**
+- `limit` (int): Maximum number of concurrent requests (must be >= 1)
+
+### `download_subtitles(subtitle_id, *, semaphore=None)`
 
 Download subtitles as a ZIP file (async context manager).
 
 **Parameters:**
 - `subtitle_id` (int): The ID of the subtitle to download
+- `semaphore` (asyncio.Semaphore, optional): Semaphore for limiting concurrent requests (default: shared)
 
 **Yields:**
 - `DownloadResult`: Named tuple with `filename`, `content` (async iterable), and `content_length`
@@ -223,7 +232,7 @@ Download subtitles as a ZIP file (async context manager).
 - `SessionDataError`: If session data cannot be obtained for the subtitle
 - `SecurityError`: If AnimeSub.info returns a security error (HTML instead of ZIP). This typically happens when session tokens are invalid or expired. The exception includes `sh` and `cookie` attributes for debugging.
 
-### `download_and_extract_subtitle(filename_or_dict, subtitle_id, *, normalizer=None)`
+### `download_and_extract_subtitle(filename_or_dict, subtitle_id, *, normalizer=None, semaphore=None)`
 
 Download subtitle ZIP and automatically extract the best matching file.
 
@@ -231,6 +240,7 @@ Download subtitle ZIP and automatically extract the best matching file.
 - `filename_or_dict` (str | dict): Target filename or anitopy-parsed dict to match against
 - `subtitle_id` (int): The ID of the subtitle to download
 - `normalizer` (callable, optional): Custom normalization function
+- `semaphore` (asyncio.Semaphore, optional): Semaphore for limiting concurrent requests (default: shared)
 
 **Returns:**
 - `ExtractedSubtitle`: Named tuple with `filename` (str) and `content` (bytes)
