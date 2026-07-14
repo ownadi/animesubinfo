@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 members = [
     "animesubinfo",
     "animesubinfo-cli",
+    "animesubinfo-kodi",
 ]
 
 [[package]]
@@ -66,6 +67,31 @@ requires-dist = [
     { name = "rich", specifier = ">=13.9.0" },
     { name = "typer", specifier = ">=0.15.0" },
 ]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.4.2" },
+    { name = "pytest-asyncio", specifier = ">=0.24.0" },
+    { name = "pytest-mock", specifier = ">=3.14.0" },
+]
+
+[[package]]
+name = "animesubinfo-kodi"
+version = "0.1.0"
+source = { editable = "packages/animesubinfo-kodi" }
+dependencies = [
+    { name = "animesubinfo" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-mock" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "animesubinfo", editable = "packages/animesubinfo" }]
 
 [package.metadata.requires-dev]
 dev = [

@@ -6,6 +6,7 @@ Python client and tools for searching and downloading anime subtitles from [Anim
 
 - **[animesubinfo](./packages/animesubinfo)** - Core library
 - **[animesubinfo-cli](./packages/animesubinfo-cli)** - Command-line interface
+- **[animesubinfo-kodi](./packages/animesubinfo-kodi)** - Kodi subtitle service add-on
 
 ## Development
 
@@ -25,6 +26,7 @@ uv sync --all-packages
 # Run tests for all packages
 uv run --package animesubinfo pytest
 uv run --package animesubinfo-cli pytest
+uv run --package animesubinfo-kodi pytest
 ```
 
 ### Publishing
@@ -37,4 +39,7 @@ git tag animesubinfo-v0.1.0
 
 # Tag for CLI release
 git tag animesubinfo-cli-v0.1.0
+
+# Tag for Kodi add-on release
+git tag animesubinfo-kodi-v0.1.0
 ```

@@ -2,6 +2,14 @@
 members = ["packages/*"]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/animesubinfo/tests", "packages/animesubinfo-cli/tests"]
-pythonpath = ["packages/animesubinfo/tests", "packages/animesubinfo-cli/tests"]
+testpaths = [
+    "packages/animesubinfo/tests",
+    "packages/animesubinfo-cli/tests",
+    "packages/animesubinfo-kodi/tests",
+]
+pythonpath = [
+    "packages/animesubinfo/tests",
+    "packages/animesubinfo-cli/tests",
+    "packages/animesubinfo-kodi/tests",
+]
 asyncio_mode = "strict"

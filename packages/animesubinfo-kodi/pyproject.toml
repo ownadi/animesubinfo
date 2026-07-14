@@ -1,0 +1,31 @@
+[project]
+name = "animesubinfo-kodi"
+version = "0.1.0"
+description = "AnimeSub.info subtitle service add-on for Kodi"
+readme = "README.md"
+authors = [
+    { name = "Adrian Lehmann", email = "ownadi@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "animesubinfo>=0.4.0",
+]
+
+[tool.uv.sources]
+animesubinfo = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.8.22,<0.9.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-asyncio>=0.24.0",
+    "pytest-mock>=3.14.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+asyncio_mode = "strict"

@@ -7,10 +7,12 @@
   "python.testing.cwd": "${workspaceFolder}",
   "python.analysis.extraPaths": [
     "${workspaceFolder}/packages/animesubinfo/src",
-    "${workspaceFolder}/packages/animesubinfo-cli/src"
+    "${workspaceFolder}/packages/animesubinfo-cli/src",
+    "${workspaceFolder}/packages/animesubinfo-kodi/src"
   ],
   "python.autoComplete.extraPaths": [
     "${workspaceFolder}/packages/animesubinfo/src",
-    "${workspaceFolder}/packages/animesubinfo-cli/src"
+    "${workspaceFolder}/packages/animesubinfo-cli/src",
+    "${workspaceFolder}/packages/animesubinfo-kodi/src"
   ]
 }

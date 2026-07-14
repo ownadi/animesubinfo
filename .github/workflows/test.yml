@@ -14,6 +14,7 @@ jobs:
     outputs:
       animesubinfo: ${{ steps.filter.outputs.animesubinfo }}
       animesubinfo-cli: ${{ steps.filter.outputs.animesubinfo-cli }}
+      animesubinfo-kodi: ${{ steps.filter.outputs.animesubinfo-kodi }}
       workspace: ${{ steps.filter.outputs.workspace }}
     steps:
     - uses: actions/checkout@v4
@@ -26,6 +27,8 @@ jobs:
             - 'packages/animesubinfo/**'
           animesubinfo-cli:
             - 'packages/animesubinfo-cli/**'
+          animesubinfo-kodi:
+            - 'packages/animesubinfo-kodi/**'
           workspace:
             - 'pyproject.toml'
             - 'uv.lock'
@@ -38,7 +41,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.13", "3.14"]
+        python-version: ["3.11", "3.13", "3.14"]
 
     steps:
     - uses: actions/checkout@v4
@@ -54,7 +57,7 @@ jobs:
         enable-cache: true
 
     - name: Install dependencies
-      run: uv sync --all-packages
+      run: uv sync --all-packages --python ${{ matrix.python-version }}
 
     - name: Run tests for animesubinfo
       # Run if: library changed, workspace changed, push to main, or called from another workflow
@@ -64,7 +67,7 @@ jobs:
         github.event_name == 'push' ||
         github.event_name == 'workflow_call'
       working-directory: packages/animesubinfo
-      run: uv run pytest
+      run: uv run --python ${{ matrix.python-version }} pytest
 
     - name: Run tests for animesubinfo-cli
       # Run if: CLI changed, library changed (dependency), workspace changed, push to main, or called from another workflow
@@ -75,4 +78,15 @@ jobs:
         github.event_name == 'push' ||
         github.event_name == 'workflow_call'
       working-directory: packages/animesubinfo-cli
-      run: uv run pytest
+      run: uv run --python ${{ matrix.python-version }} pytest
+
+    - name: Run tests for animesubinfo-kodi
+      # Run if: Kodi add-on changed, library changed (dependency), workspace changed, push to main, or called from another workflow
+      if: |
+        needs.detect-changes.outputs.animesubinfo-kodi == 'true' ||
+        needs.detect-changes.outputs.animesubinfo == 'true' ||
+        needs.detect-changes.outputs.workspace == 'true' ||
+        github.event_name == 'push' ||
+        github.event_name == 'workflow_call'
+      working-directory: packages/animesubinfo-kodi
+      run: uv run --python ${{ matrix.python-version }} pytest
