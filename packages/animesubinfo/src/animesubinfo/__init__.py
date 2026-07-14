@@ -5,6 +5,7 @@ from .api import (  # noqa: E402
     download_subtitles,
     ExtractedSubtitle,
     find_best_subtitles,
+    find_subtitles,
     search,
     set_default_concurrency,
 )
@@ -40,6 +41,7 @@ anitopy.parser.keyword_manager = keyword_manager
 __all__ = [
     "search",
     "find_best_subtitles",
+    "find_subtitles",
     "download_subtitles",
     "download_and_extract_subtitle",
     "set_default_concurrency",

@@ -21,6 +21,7 @@ All main functions, types, and exceptions can be imported directly from `animesu
 ```python
 from animesubinfo import (
     search,
+    find_subtitles,
     find_best_subtitles,
     download_subtitles,
     download_and_extract_subtitle,
@@ -78,6 +79,22 @@ async def main():
         print(f"Episode: {subtitle.episode}")
         print(f"Author: {subtitle.author}")
         print(f"Fitness score: {subtitle.calculate_fitness(filename)}")
+
+asyncio.run(main())
+```
+
+### Find all ranked matches for your file
+
+```python
+import asyncio
+from animesubinfo import find_subtitles
+
+async def main():
+    filename = "[HorribleSubs] Attack on Titan - 12 [BD 1080p].mkv"
+
+    # Compatible results are ordered by fitness, then by newest upload.
+    for subtitle in await find_subtitles(filename):
+        print(subtitle.author, subtitle.added_by, subtitle.date)
 
 asyncio.run(main())
 ```
@@ -209,6 +226,20 @@ Find the best matching subtitles for an anime file.
 
 **Returns:**
 - `Subtitles | None`: Best matching subtitle or None if not found
+
+### `find_subtitles(filename_or_dict, *, normalizer=None, semaphore=None, cache=None)`
+
+Find all compatible subtitles for an anime file, ordered by descending fitness
+score and then by newest upload date.
+
+**Parameters:**
+- `filename_or_dict` (str | dict): Anime filename or anitopy-parsed dict
+- `normalizer` (callable, optional): Custom normalization function
+- `semaphore` (asyncio.Semaphore, optional): Semaphore for limiting concurrent requests
+- `cache` (SubtitleCache, optional): Shared title search cache
+
+**Returns:**
+- `list[Subtitles]`: Ranked compatible subtitle matches
 
 ### `set_default_concurrency(limit)`
 

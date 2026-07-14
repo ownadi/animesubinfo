@@ -1,12 +1,12 @@
 [project]
 name = "animesubinfo"
-version = "0.3.0"
+version = "0.4.0"
 description = "Python client for searching and downloading anime subtitles from AnimeSub.info"
 readme = "README.md"
 authors = [
     { name = "Adrian Lehmann", email = "ownadi@gmail.com" }
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = [
     "anitopy>=2.1.1",
     "httpx>=0.28.1",

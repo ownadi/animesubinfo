@@ -1,5 +1,5 @@
 import re
-from datetime import date, datetime
+from datetime import date
 from html.parser import HTMLParser
 from typing import List, Optional, Tuple, Dict, Sequence
 
@@ -207,11 +207,12 @@ class SearchResultsParser(HTMLParser):
                         self._current_subs.to_episode = to_episode
                     elif self._current_col == 2:  # Date
                         try:
-                            # Parse date in format YYYY.MM.DD
-                            self._current_subs.date = datetime.strptime(
-                                data, "%Y.%m.%d"
-                            ).date()
-                        except ValueError:
+                            # Parse YYYY.MM.DD without datetime.strptime. Some
+                            # embedded Python builds (including Kodi's) expose
+                            # strptime as None.
+                            year, month, day = (int(part) for part in data.split("."))
+                            self._current_subs.date = date(year, month, day)
+                        except (TypeError, ValueError):
                             # If parsing fails, keep the placeholder date
                             pass
                     elif self._current_col == 4:  # Format
