@@ -31,7 +31,8 @@ uv run --package animesubinfo-kodi pytest
 
 ### Publishing
 
-Packages are published independently with version-specific tags:
+The core library and CLI are published independently with version-specific
+tags:
 
 ```bash
 # Tag for library release
@@ -39,7 +40,15 @@ git tag animesubinfo-v0.1.0
 
 # Tag for CLI release
 git tag animesubinfo-cli-v0.1.0
-
-# Tag for Kodi add-on release
-git tag animesubinfo-kodi-v0.1.0
 ```
+
+For a Kodi release, create and push its version tag, then publish a GitHub
+Release for that same tag:
+
+```bash
+git tag animesubinfo-kodi-v0.1.0
+git push origin animesubinfo-kodi-v0.1.0
+```
+
+Publishing the release builds the add-on with Python 3.11 and attaches the
+installable ZIP directly to the release.

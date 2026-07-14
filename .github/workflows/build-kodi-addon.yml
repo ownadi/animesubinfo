@@ -1,19 +1,23 @@
-name: Build Kodi add-on
+name: Publish Kodi add-on
 
 on:
-  push:
-    tags:
-      - 'animesubinfo-kodi-v*'
+  release:
+    types: [published]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
+    if: startsWith(github.event.release.tag_name, 'animesubinfo-kodi-v')
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.release.tag_name }}
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -25,13 +29,24 @@ jobs:
       with:
         enable-cache: true
 
-    - name: Build installable Kodi add-on
-      run: python packages/animesubinfo-kodi/scripts/build_addon.py
+    - name: Verify release version
+      id: version
+      shell: bash
+      run: |
+        ADDON_VERSION="$(python -c 'from xml.etree import ElementTree; print(ElementTree.parse("packages/animesubinfo-kodi/addon.xml").getroot().attrib["version"])')"
+        EXPECTED_TAG="animesubinfo-kodi-v${ADDON_VERSION}"
+        if [[ "$RELEASE_TAG" != "$EXPECTED_TAG" ]]; then
+          echo "Release tag $RELEASE_TAG does not match add-on version $ADDON_VERSION"
+          exit 1
+        fi
+        echo "archive=dist/service.subtitles.animesubinfo-${ADDON_VERSION}.zip" >> "$GITHUB_OUTPUT"
 
-    - name: Upload Kodi add-on ZIP
-      uses: actions/upload-artifact@v4
-      with:
-        name: kodi-addon-${{ github.ref_name }}
-        path: dist/service.subtitles.animesubinfo-*.zip
-        if-no-files-found: error
-        compression-level: 0
+    - name: Build installable Kodi add-on
+      run: >-
+        python packages/animesubinfo-kodi/scripts/build_addon.py
+        --output "${{ steps.version.outputs.archive }}"
+
+    - name: Upload ZIP to GitHub Release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: gh release upload "$RELEASE_TAG" "${{ steps.version.outputs.archive }}"
