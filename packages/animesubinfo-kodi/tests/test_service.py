@@ -4,14 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from animesubinfo import ExtractedSubtitle
+from animesubinfo import ExtractedSubtitle, SubtitleMatch
 from animesubinfo_kodi import SubtitleService
 
 
 @pytest.mark.asyncio
 async def test_search_returns_ranked_matches_unchanged(sample_subtitle) -> None:
     calls: list[str] = []
-    matches = [sample_subtitle]
+    matches = [SubtitleMatch(subtitle=sample_subtitle, score=123)]
 
     async def find(video_name: str):
         calls.append(video_name)

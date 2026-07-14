@@ -22,6 +22,6 @@ def test_manifest_and_python_package_versions_match() -> None:
     with (PACKAGE_ROOT / "pyproject.toml").open("rb") as pyproject_file:
         pyproject = tomllib.load(pyproject_file)
 
-    assert root.attrib["version"] == "0.1.0"
+    assert root.attrib["version"] == "0.2.0"
     assert root.attrib["version"] == pyproject["project"]["version"]
-    assert "animesubinfo>=0.4.0" in pyproject["project"]["dependencies"]
+    assert "animesubinfo>=0.5.0" in pyproject["project"]["dependencies"]

@@ -9,9 +9,10 @@ from urllib.parse import parse_qs, unquote, urlencode
 
 from animesubinfo import (
     ExtractedSubtitle,
+    SubtitleMatch,
     Subtitles,
     download_and_extract_subtitle,
-    find_subtitles,
+    find_subtitle_matches,
 )
 
 from .service import SubtitleService
@@ -19,8 +20,8 @@ from .service import SubtitleService
 _METADATA_VALUE_LIMIT = 16
 
 
-async def _find(video_name: str) -> list[Subtitles]:
-    return await find_subtitles(video_name)
+async def _find(video_name: str) -> list[SubtitleMatch]:
+    return await find_subtitle_matches(video_name)
 
 
 async def _download(video_name: str, subtitle_id: int) -> ExtractedSubtitle:
@@ -95,13 +96,17 @@ def run(argv: list[str] | None = None) -> None:
 
     try:
         if action in {"search", "manualsearch"}:
-            subtitles = asyncio.run(service.search(video_name))
-            for subtitle in subtitles:
+            matches = asyncio.run(service.search(video_name))
+            for match in matches:
+                subtitle = match.subtitle
                 item = xbmcgui.ListItem(
                     label="Polish", label2=_result_details(subtitle)
                 )
                 item.setArt({"icon": _rating(subtitle)})
-                item.setProperty("sync", "true")
+                item.setProperty(
+                    "sync",
+                    "true" if match.is_probably_synced else "false",
+                )
                 item.setProperty("hearing_imp", "false")
                 download_params = {
                     "action": "download",

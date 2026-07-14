@@ -4,7 +4,7 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from animesubinfo import ExtractedSubtitle
+from animesubinfo import ExtractedSubtitle, SubtitleMatch
 from animesubinfo_kodi import addon
 
 from conftest import make_subtitle
@@ -31,10 +31,19 @@ def test_result_details_bound_long_metadata(sample_subtitle) -> None:
 def test_search_lists_every_match_in_core_ranking_order(
     monkeypatch, kodi_modules
 ) -> None:
-    ranked = [
+    subtitles = [
         make_subtitle(20, uploaded=date(2025, 2, 1)),
         make_subtitle(10, uploaded=date(2024, 1, 1)),
     ]
+    ranked = [
+        SubtitleMatch(subtitle=subtitles[0], score=(101 << 8) | (1 << 5)),
+        SubtitleMatch(subtitle=subtitles[1], score=101 << 8),
+    ]
+
+    def calculate_fitness(*args):
+        raise AssertionError("Kodi must use the fitness calculated by core")
+
+    monkeypatch.setattr(type(subtitles[0]), "calculate_fitness", calculate_fitness)
     searched: list[str] = []
 
     async def find(video_name: str):
@@ -49,7 +58,10 @@ def test_search_lists_every_match_in_core_ranking_order(
     assert len(kodi_modules.directory_items) == 2
 
     listed_ids: list[int] = []
-    for (args, kwargs), subtitle in zip(kodi_modules.directory_items, ranked):
+    for index, ((args, kwargs), match) in enumerate(
+        zip(kodi_modules.directory_items, ranked)
+    ):
+        subtitle = match.subtitle
         handle, url, item = args
         assert handle == 7
         assert kwargs == {"isFolder": False}
@@ -57,7 +69,10 @@ def test_search_lists_every_match_in_core_ranking_order(
         assert item.label2 == (
             f"{subtitle.date.isoformat()} · A: Subtitle Author · U: Upload User"
         )
-        assert item.properties == {"sync": "true", "hearing_imp": "false"}
+        assert item.properties == {
+            "sync": "true" if index == 0 else "false",
+            "hearing_imp": "false",
+        }
         listed_ids.append(int(parse_qs(urlparse(url).query)["id"][0]))
 
     assert listed_ids == [20, 10]

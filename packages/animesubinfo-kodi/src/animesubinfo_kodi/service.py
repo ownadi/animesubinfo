@@ -3,20 +3,20 @@
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-from animesubinfo import ExtractedSubtitle, Subtitles
+from animesubinfo import ExtractedSubtitle, SubtitleMatch
 
-FindSubtitles = Callable[[str], Awaitable[list[Subtitles]]]
+FindSubtitleMatches = Callable[[str], Awaitable[list[SubtitleMatch]]]
 DownloadSubtitle = Callable[[str, int], Awaitable[ExtractedSubtitle]]
 
 
 class SubtitleService:
     """Find and download subtitles using the core package."""
 
-    def __init__(self, find: FindSubtitles, download: DownloadSubtitle) -> None:
+    def __init__(self, find: FindSubtitleMatches, download: DownloadSubtitle) -> None:
         self._find = find
         self._download = download
 
-    async def search(self, video_name: str) -> list[Subtitles]:
+    async def search(self, video_name: str) -> list[SubtitleMatch]:
         """Return ranked subtitle matches for a non-empty video name."""
         if not video_name.strip():
             return []
