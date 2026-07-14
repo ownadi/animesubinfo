@@ -52,6 +52,65 @@ async def test_download_subtitles_basic():
 
 
 @pytest.mark.asyncio
+async def test_download_subtitles_streams_response_lazily():
+    """Response chunks are read on demand and an early exit closes the stream."""
+    real_client = httpx.AsyncClient
+    clients: list[httpx.AsyncClient] = []
+
+    class TrackingStream(httpx.AsyncByteStream):
+        def __init__(self) -> None:
+            self.chunks_read = 0
+            self.closed = False
+
+        async def __aiter__(self):
+            for chunk in (b"first", b"second"):
+                self.chunks_read += 1
+                yield chunk
+
+        async def aclose(self) -> None:
+            self.closed = True
+
+    stream = TrackingStream()
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            stream=stream,
+            headers={
+                "content-disposition": 'attachment; filename="streamed.zip"',
+                "content-length": "11",
+            },
+        )
+
+    def client_factory(**kwargs: object) -> httpx.AsyncClient:
+        client = real_client(transport=httpx.MockTransport(handler), **kwargs)
+        clients.append(client)
+        return client
+
+    with (
+        patch("animesubinfo.api._search_by_id", new_callable=AsyncMock) as mock_search,
+        patch("animesubinfo.api.httpx.AsyncClient", side_effect=client_factory),
+    ):
+        mock_search.return_value = SessionData(sh="sh_value", ansi_cookie="cookie")
+
+        async with download_subtitles(333) as download:
+            assert download.filename == "streamed.zip"
+            assert download.content_length == 11
+            assert stream.chunks_read == 0
+            assert not stream.closed
+
+            content = download.content.__aiter__()
+            assert await anext(content) == b"first"
+            assert stream.chunks_read == 1
+
+        assert stream.chunks_read == 1
+        assert stream.closed
+
+    assert len(clients) == 1
+    assert clients[0].is_closed
+
+
+@pytest.mark.asyncio
 @respx.mock
 async def test_download_subtitles_filename_with_quotes():
     """Test parsing filename with quotes in Content-Disposition."""

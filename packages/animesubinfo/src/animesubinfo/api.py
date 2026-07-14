@@ -169,25 +169,37 @@ async def search(
 
                 return page_num, page_parser.subtitles_list
 
-        async with asyncio.TaskGroup() as tg:
-            # Schedule all remaining pages
-            tasks = [
-                tg.create_task(fetch_and_parse_page(page_num))
-                for page_num in range(2, total_pages + 1)
-            ]
+        tasks: set[asyncio.Task[tuple[int, List[Subtitles]]]] = set()
+        try:
+            # Schedule all remaining pages before yielding the first page. These
+            # tasks are managed explicitly because a TaskGroup must not span a
+            # yield: closing the generator would make TaskGroup wrap
+            # GeneratorExit in a BaseExceptionGroup.
+            for page_num in range(2, total_pages + 1):
+                tasks.add(
+                    asyncio.create_task(
+                        fetch_and_parse_page(page_num),
+                        name=f"animesubinfo-search-page-{page_num}",
+                    )
+                )
 
-            # Now yield first page results after scheduling
+            # Yield first page results while later pages are fetched concurrently.
             for subtitle in first_page_results:
                 yield subtitle
 
             # Collect results in a dict to maintain order
             results_map: dict[int, List[Subtitles]] = {}
             next_page_to_yield = 2
+            pending = set(tasks)
 
             # Process results as they complete
-            for coro in asyncio.as_completed(tasks):
-                page_num, page_results = await coro
-                results_map[page_num] = page_results
+            while pending:
+                done, pending = await asyncio.wait(
+                    pending, return_when=asyncio.FIRST_COMPLETED
+                )
+                for task in done:
+                    page_num, page_results = task.result()
+                    results_map[page_num] = page_results
 
                 # Yield any consecutive pages that are ready
                 while next_page_to_yield in results_map:
@@ -195,6 +207,15 @@ async def search(
                         yield subtitle
                     del results_map[next_page_to_yield]
                     next_page_to_yield += 1
+        finally:
+            # An async-for break does not synchronously close an async generator.
+            # When it is closed or finalized, cancel every outstanding request and
+            # retrieve all task results before the shared client is closed.
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def _search_by_id(
@@ -274,46 +295,41 @@ async def download_subtitles(
     url = "http://animesub.info/sciagnij.php"
 
     async with semaphore:
-        client = httpx.AsyncClient(
+        async with httpx.AsyncClient(
             cookies={"ansi_sciagnij": session.ansi_cookie},
             default_encoding="iso-8859-2",
-        )
-        response = None
-        try:
-            response = await client.post(
+        ) as client:
+            async with client.stream(
+                "POST",
                 url,
                 data={"id": str(subtitle_id), "sh": session.sh},
-            )
-            response.raise_for_status()
+            ) as response:
+                response.raise_for_status()
 
-            # Check for security error (HTML response instead of ZIP)
-            content_type = response.headers.get("content-type", "")
-            if "text/html" in content_type:
-                raise SecurityError(subtitle_id, session.sh, session.ansi_cookie)
+                # Check for security error (HTML response instead of ZIP)
+                content_type = response.headers.get("content-type", "")
+                if "text/html" in content_type:
+                    raise SecurityError(subtitle_id, session.sh, session.ansi_cookie)
 
-            # Extract filename from Content-Disposition header
-            filename = "subtitle.zip"  # default fallback
-            content_disposition = response.headers.get("content-disposition", "")
-            if content_disposition:
-                # Parse filename from header like: attachment; filename="file.zip"
-                match = re.search(r'filename="?([^"]+)"?', content_disposition)
-                if match:
-                    filename = match.group(1)
+                # Extract filename from Content-Disposition header
+                filename = "subtitle.zip"  # default fallback
+                content_disposition = response.headers.get("content-disposition", "")
+                if content_disposition:
+                    # Parse filename from header like: attachment; filename="file.zip"
+                    match = re.search(r'filename="?([^"]+)"?', content_disposition)
+                    if match:
+                        filename = match.group(1)
 
-            # Extract content length
-            content_length = None
-            if "content-length" in response.headers:
-                content_length = int(response.headers["content-length"])
+                # Extract content length
+                content_length = None
+                if "content-length" in response.headers:
+                    content_length = int(response.headers["content-length"])
 
-            yield DownloadResult(
-                filename=filename,
-                content=response.aiter_bytes(),
-                content_length=content_length,
-            )
-        finally:
-            if response is not None:
-                await response.aclose()
-            await client.aclose()
+                yield DownloadResult(
+                    filename=filename,
+                    content=response.aiter_bytes(),
+                    content_length=content_length,
+                )
 
 
 def _calculate_file_fitness(
@@ -689,18 +705,34 @@ async def _fetch_title_subtitles(
 
                 return page_parser.subtitles_list
 
-        async with asyncio.TaskGroup() as tg:
-            # Schedule all remaining pages immediately
-            tasks = [
-                tg.create_task(fetch_and_parse_page(page_num))
-                for page_num in range(2, total_pages + 1)
-            ]
+        tasks: set[asyncio.Task[List[Subtitles]]] = set()
+        try:
+            # Keep task supervision inside the generator rather than spanning a
+            # yield with TaskGroup. This allows GeneratorExit to propagate
+            # normally when iteration stops early.
+            for page_num in range(2, total_pages + 1):
+                tasks.add(
+                    asyncio.create_task(
+                        fetch_and_parse_page(page_num),
+                        name=f"animesubinfo-title-page-{page_num}",
+                    )
+                )
 
-            # Yield results from remaining pages as they arrive
-            for coro in asyncio.as_completed(tasks):
-                page_results = await coro
-                for subtitle in page_results:
-                    yield subtitle
+            pending = set(tasks)
+            while pending:
+                done, pending = await asyncio.wait(
+                    pending, return_when=asyncio.FIRST_COMPLETED
+                )
+                for task in done:
+                    page_results = task.result()
+                    for subtitle in page_results:
+                        yield subtitle
+        finally:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def find_subtitles(
