@@ -241,6 +241,15 @@ score and then by newest upload date.
 **Returns:**
 - `list[Subtitles]`: Ranked compatible subtitle matches
 
+### `find_subtitle_matches(filename_or_dict, *, normalizer=None, semaphore=None, cache=None)`
+
+Find the same ranked compatible subtitles while retaining each fitness score.
+This avoids recalculating fitness when a caller needs the score metadata.
+
+**Returns:**
+- `list[SubtitleMatch]`: Ranked objects containing `subtitle`, `score`, and
+  the derived `is_probably_synced` property
+
 ### `set_default_concurrency(limit)`
 
 Set the default concurrency limit for network requests.

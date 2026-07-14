@@ -5,7 +5,13 @@ from unittest.mock import patch
 
 import pytest
 
-from animesubinfo import Subtitles, SubtitlesRating, find_subtitles
+from animesubinfo import (
+    SubtitleMatch,
+    Subtitles,
+    SubtitlesRating,
+    find_subtitle_matches,
+    find_subtitles,
+)
 from animesubinfo.api import find_best_subtitles
 
 
@@ -30,7 +36,7 @@ def _subtitle(subtitle_id: int, uploaded: date) -> Subtitles:
 
 
 @pytest.mark.asyncio
-async def test_find_subtitles_orders_by_score_then_upload_date() -> None:
+async def test_find_subtitle_matches_retains_score_and_orders_matches() -> None:
     subtitles = [
         _subtitle(1, date(2025, 1, 1)),
         _subtitle(2, date(2023, 1, 1)),
@@ -51,11 +57,44 @@ async def test_find_subtitles_orders_by_score_then_upload_date() -> None:
             lambda self, parsed: scores[self.id],
         ),
     ):
-        result = await find_subtitles(
+        result = await find_subtitle_matches(
             {"anime_title": "Test Anime", "episode_number": "1"}
         )
 
-    assert [subtitle.id for subtitle in result] == [3, 2, 1]
+    assert [(match.subtitle.id, match.score) for match in result] == [
+        (3, 20),
+        (2, 20),
+        (1, 10),
+    ]
+
+
+def test_subtitle_match_identifies_probably_synced_results() -> None:
+    subtitle = _subtitle(1, date(2025, 1, 1))
+    base_score_with_lower_tiers = (101 << 8) | 0b1_1111
+
+    assert not SubtitleMatch(subtitle, base_score_with_lower_tiers).is_probably_synced
+    assert SubtitleMatch(
+        subtitle, base_score_with_lower_tiers | (1 << 5)
+    ).is_probably_synced
+
+
+@pytest.mark.asyncio
+async def test_find_subtitles_unwraps_scored_matches() -> None:
+    expected = _subtitle(1, date(2025, 1, 1))
+    matches = [SubtitleMatch(subtitle=expected, score=123)]
+
+    with patch(
+        "animesubinfo.api.find_subtitle_matches", return_value=matches
+    ) as find_matches:
+        result = await find_subtitles("Test Anime - 01.mkv")
+
+    assert result == [expected]
+    find_matches.assert_awaited_once_with(
+        "Test Anime - 01.mkv",
+        normalizer=None,
+        semaphore=None,
+        cache=None,
+    )
 
 
 @pytest.mark.asyncio

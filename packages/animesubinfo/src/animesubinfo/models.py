@@ -350,4 +350,17 @@ class Subtitles:
         return False
 
 
-__all__ = ["Subtitles", "SubtitlesRating", "SortBy", "TitleType"]
+@dataclass(frozen=True)
+class SubtitleMatch:
+    """A compatible subtitle together with its calculated fitness score."""
+
+    subtitle: Subtitles
+    score: int
+
+    @property
+    def is_probably_synced(self) -> bool:
+        """Return whether checksum, filename, or source matches the video."""
+        return bool((self.score >> 5) & 0b111)
+
+
+__all__ = ["SubtitleMatch", "Subtitles", "SubtitlesRating", "SortBy", "TitleType"]

@@ -5,13 +5,20 @@ from .api import (  # noqa: E402
     download_subtitles,
     ExtractedSubtitle,
     find_best_subtitles,
+    find_subtitle_matches,
     find_subtitles,
     search,
     set_default_concurrency,
 )
 from .cache import SubtitleCache  # noqa: E402
 from .exceptions import SecurityError, SessionDataError  # noqa: E402
-from .models import SortBy, Subtitles, SubtitlesRating, TitleType  # noqa: E402
+from .models import (  # noqa: E402
+    SortBy,
+    SubtitleMatch,
+    Subtitles,
+    SubtitlesRating,
+    TitleType,
+)
 
 import anitopy.keyword as keyword_module
 
@@ -41,12 +48,14 @@ anitopy.parser.keyword_manager = keyword_manager
 __all__ = [
     "search",
     "find_best_subtitles",
+    "find_subtitle_matches",
     "find_subtitles",
     "download_subtitles",
     "download_and_extract_subtitle",
     "set_default_concurrency",
     "ExtractedSubtitle",
     "SubtitleCache",
+    "SubtitleMatch",
     "Subtitles",
     "SubtitlesRating",
     "SortBy",

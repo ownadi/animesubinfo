@@ -21,7 +21,7 @@ import httpx
 
 from .cache import CacheKey, SubtitleCache
 from .exceptions import SecurityError, SessionDataError
-from .models import SortBy, Subtitles, TitleType
+from .models import SortBy, SubtitleMatch, Subtitles, TitleType
 from .parsers.catalog_parser import CatalogParser
 from .parsers.search_results_parser import SearchResultsParser
 from .utils import normalize as default_normalize
@@ -735,14 +735,14 @@ async def _fetch_title_subtitles(
                 await asyncio.gather(*tasks, return_exceptions=True)
 
 
-async def find_subtitles(
+async def find_subtitle_matches(
     filename_or_dict: str | dict[str, Any],
     *,
     normalizer: Optional[Callable[[str], str]] = None,
     semaphore: Optional[asyncio.Semaphore] = None,
     cache: Optional[SubtitleCache] = None,
-) -> list[Subtitles]:
-    """Find all compatible subtitles for an anime file, best match first.
+) -> list[SubtitleMatch]:
+    """Find scored compatible subtitles for an anime file, best match first.
 
     This function:
     1. Extracts anime title from filename/dict using anitopy
@@ -761,20 +761,20 @@ async def find_subtitles(
             anime title without repeated network requests.
 
     Returns:
-        Compatible subtitles in descending match order. Subtitles with equal
-        fitness are ordered from newest to oldest.
+        Scored compatible subtitles in descending match order. Subtitles with
+        equal fitness are ordered from newest to oldest.
 
     Example:
         ```
         # Single file
-        matches = await find_subtitles(
+        matches = await find_subtitle_matches(
             "[HorribleSubs] Attack on Titan - 12 [BD 1080p].mkv"
         )
 
         # Batch processing with cache
         cache: SubtitleCache = {}
         for filename in episode_files:
-            matches = await find_subtitles(filename, cache=cache)
+            matches = await find_subtitle_matches(filename, cache=cache)
         ```
     """
     norm = normalizer or default_normalize
@@ -795,17 +795,36 @@ async def find_subtitles(
     season = str(parsed.get("anime_season", "") or "")
     cache_key: CacheKey = (norm(title), year, season)
 
-    ranked: list[tuple[int, Subtitles]] = []
+    ranked: list[SubtitleMatch] = []
 
     async for subtitle in _iter_title_subtitles(
         parsed, norm, semaphore, cache, cache_key
     ):
         score = subtitle.calculate_fitness(parsed)
         if score > 0:
-            ranked.append((score, subtitle))
+            ranked.append(SubtitleMatch(subtitle=subtitle, score=score))
 
-    ranked.sort(key=lambda match: (match[0], match[1].date), reverse=True)
-    return [subtitle for _, subtitle in ranked]
+    ranked.sort(
+        key=lambda match: (match.score, match.subtitle.date), reverse=True
+    )
+    return ranked
+
+
+async def find_subtitles(
+    filename_or_dict: str | dict[str, Any],
+    *,
+    normalizer: Optional[Callable[[str], str]] = None,
+    semaphore: Optional[asyncio.Semaphore] = None,
+    cache: Optional[SubtitleCache] = None,
+) -> list[Subtitles]:
+    """Find compatible subtitles without exposing their fitness scores."""
+    matches = await find_subtitle_matches(
+        filename_or_dict,
+        normalizer=normalizer,
+        semaphore=semaphore,
+        cache=cache,
+    )
+    return [match.subtitle for match in matches]
 
 
 async def find_best_subtitles(
