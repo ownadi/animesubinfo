@@ -354,7 +354,8 @@ async def test_search_early_close_cancels_pending_pages() -> None:
     ):
         results = search("Naruto", semaphore=asyncio.Semaphore(1))
         assert await anext(results) is result
-        await asyncio.wait_for(page_started.wait(), timeout=1)
+        # Later-page tasks get an event-loop turn before the first result is yielded.
+        assert page_started.is_set()
         await asyncio.wait_for(results.aclose(), timeout=1)
 
     assert page_cancelled.is_set()
@@ -418,6 +419,7 @@ async def test_title_search_can_close_while_yielding_later_pages() -> None:
     """The internal title iterator also closes cleanly after a later-page yield."""
     real_client = httpx.AsyncClient
     result = object()
+    page_started = asyncio.Event()
     clients: list[httpx.AsyncClient] = []
 
     class FakeCatalogParser:
@@ -436,6 +438,9 @@ async def test_title_search_can_close_while_yielding_later_pages() -> None:
             pass
 
     async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.params.get("od") is not None:
+            page_started.set()
+
         return httpx.Response(
             200,
             text="response",
@@ -456,6 +461,8 @@ async def test_title_search_can_close_while_yielding_later_pages() -> None:
             {"anime_title": "Naruto"}, lambda value: value, asyncio.Semaphore(1)
         )
         assert await anext(results) is result
+        # Later-page tasks get an event-loop turn before the first result is yielded.
+        assert page_started.is_set()
         assert await anext(results) is result
         await results.aclose()
 

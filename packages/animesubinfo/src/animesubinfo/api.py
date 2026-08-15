@@ -183,6 +183,10 @@ async def search(
                     )
                 )
 
+            # Give the newly created tasks a chance to start their requests
+            # before the caller begins consuming the first page synchronously.
+            await asyncio.sleep(0)
+
             # Yield first page results while later pages are fetched concurrently.
             for subtitle in first_page_results:
                 yield subtitle
@@ -342,14 +346,16 @@ def _calculate_file_fitness(
 
     Args:
         target_parsed: anitopy-parsed dict of the target filename
-        zip_filename: Name of file in the ZIP archive
+        zip_filename: Name of file in the ZIP archive, possibly with directories
         normalizer: Normalization function for text comparison
 
     Returns:
         Fitness score (higher is better, 0 means no match)
     """
+    basename = Path(zip_filename).name
+
     # Parse the ZIP filename
-    zip_parsed = cast(dict[str, Any], anitopy.parse(zip_filename) or {})  # type: ignore[misc]
+    zip_parsed = cast(dict[str, Any], anitopy.parse(basename) or {})  # type: ignore[misc]
 
     # Match episode number (hard requirement)
     target_episode = str(target_parsed.get("episode_number", ""))
@@ -371,7 +377,7 @@ def _calculate_file_fitness(
 
     # Add bonus for recognized subtitle extensions
     subtitle_extensions = [".srt", ".ass", ".ssa", ".sub", ".vtt"]
-    if any(zip_filename.lower().endswith(ext) for ext in subtitle_extensions):
+    if any(basename.lower().endswith(ext) for ext in subtitle_extensions):
         result += 10  # Prefer subtitle files over other text files
 
     # Helper to get parsed values
@@ -439,6 +445,9 @@ def _calculate_file_fitness(
 
     result = (result << 4) | tier3_count
 
+    # Tier 4: Subtitle format
+    result = (result << 1) | (1 if basename.lower().endswith(".ass") else 0)
+
     return result
 
 
@@ -482,7 +491,7 @@ async def download_and_extract_subtitle(
     Raises:
         SessionDataError: If session data cannot be obtained
         SecurityError: If AnimeSub.info returns a security error
-        ValueError: Only raised if the archive is completely empty
+        ValueError: Only raised if the archive holds no files
 
     Example:
         ```
@@ -521,8 +530,8 @@ async def download_and_extract_subtitle(
 
     # Extract and analyze files
     with zipfile.ZipFile(zip_content, "r") as zip_file:
-        # Get all files in the archive
-        all_files = zip_file.namelist()
+        # Consider every file in the archive, at any depth.
+        all_files = [info.filename for info in zip_file.infolist() if not info.is_dir()]
 
         if not all_files:
             raise ValueError(f"Empty archive (ID: {subtitle_id})")
@@ -668,12 +677,10 @@ async def _fetch_title_subtitles(
         if not first_page_results:
             return
 
-        # Yield first page results
-        for subtitle in first_page_results:
-            yield subtitle
-
         # Single page case - done
         if total_pages == 1:
+            for subtitle in first_page_results:
+                yield subtitle
             return
 
         # Multiple pages - fetch concurrently
@@ -717,6 +724,13 @@ async def _fetch_title_subtitles(
                         name=f"animesubinfo-title-page-{page_num}",
                     )
                 )
+
+            # Start later-page requests before first-page scoring begins in the
+            # consuming coroutine.
+            await asyncio.sleep(0)
+
+            for subtitle in first_page_results:
+                yield subtitle
 
             pending = set(tasks)
             while pending:

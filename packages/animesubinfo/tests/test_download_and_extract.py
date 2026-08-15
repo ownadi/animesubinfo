@@ -21,7 +21,8 @@ def create_test_zip(*files: tuple[str, bytes]) -> bytes:
     """Create a test ZIP file in memory.
 
     Args:
-        *files: Tuples of (filename, content) to add to the ZIP
+        *files: Tuples of (filename, content) to add to the ZIP.
+            A name ending in "/" is stored as a directory entry.
 
     Returns:
         ZIP file content as bytes
@@ -224,6 +225,113 @@ async def test_with_anitopy_dict():
 
         assert result.filename == "Attack on Titan - 12.srt"
         assert result.content == b"subtitle content"
+
+
+@pytest.mark.asyncio
+async def test_episodes_grouped_in_directories():
+    """Test extraction from a pack that groups each episode in its own directory."""
+    checksums = ["C492DB24", "BCFB4B0C", "CAC7BC65", "C1A515B8", "CECEA65E"]
+    files: list[tuple[str, bytes]] = []
+    for ep, checksum in enumerate(checksums, start=1):
+        files.append((f"EP {ep:02d}/", b""))
+        for ext in ("ass", "sub"):
+            files.append(
+                (
+                    f"EP {ep:02d}/[Anime-Shichi] Code Geass {ep:02d} "
+                    f"(BD 1920x1080 x264 AAC) [{checksum}].{ext}",
+                    f"episode {ep} {ext}".encode(),
+                )
+            )
+
+    zip_content = create_test_zip(*files)
+
+    with patch(
+        "animesubinfo.api.download_subtitles", mock_download_subtitles(zip_content)
+    ):
+        result = await download_and_extract_subtitle(
+            "[Anime-Shichi] Code Geass 03 (BD 1920x1080 x264 AAC) [CAC7BC65].mkv",
+            subtitle_id=12345,
+        )
+
+        # The directory prefix must not be read as the episode number, and the
+        # .ass wins the tie against its .sub sibling.
+        assert result.filename == (
+            "[Anime-Shichi] Code Geass 03 (BD 1920x1080 x264 AAC) [CAC7BC65].ass"
+        )
+        assert result.content == b"episode 3 ass"
+
+
+@pytest.mark.asyncio
+async def test_directory_entries_are_never_selected():
+    """Test that a directory entry is not returned when nothing matches."""
+    zip_content = create_test_zip(
+        ("EP 01/", b""),
+        ("EP 01/Anime - 01.srt", b"episode 1"),
+    )
+
+    with patch(
+        "animesubinfo.api.download_subtitles", mock_download_subtitles(zip_content)
+    ):
+        # Episode 10 is absent, so this falls back to the first entry - which must
+        # be the file, not the directory that precedes it.
+        result = await download_and_extract_subtitle(
+            "Anime - 10.mkv", subtitle_id=12345
+        )
+
+        assert result.filename == "Anime - 01.srt"
+        assert result.content == b"episode 1"
+
+
+@pytest.mark.asyncio
+async def test_directory_only_archive_error():
+    """Test error when archive holds directories but no files."""
+    zip_content = create_test_zip(("EP 01/", b""))
+
+    with patch(
+        "animesubinfo.api.download_subtitles", mock_download_subtitles(zip_content)
+    ):
+        with pytest.raises(ValueError, match="Empty archive"):
+            await download_and_extract_subtitle("Anime - 01.mkv", subtitle_id=12345)
+
+
+@pytest.mark.asyncio
+async def test_prefers_ass_over_other_formats():
+    """Test that .ass wins between otherwise equally good matches."""
+    zip_content = create_test_zip(
+        ("Anime - 01.srt", b"srt subtitle"),
+        ("Anime - 01.sub", b"sub subtitle"),
+        ("Anime - 01.ass", b"ass subtitle"),
+    )
+
+    with patch(
+        "animesubinfo.api.download_subtitles", mock_download_subtitles(zip_content)
+    ):
+        result = await download_and_extract_subtitle(
+            "Anime - 01.mkv", subtitle_id=12345
+        )
+
+        assert result.filename == "Anime - 01.ass"
+        assert result.content == b"ass subtitle"
+
+
+@pytest.mark.asyncio
+async def test_release_metadata_outranks_ass_preference():
+    """Test that a matching release beats the .ass format preference."""
+    zip_content = create_test_zip(
+        ("[GroupB] Anime - 01 [720p].ass", b"GroupB subtitle"),
+        ("[GroupA] Anime - 01 [1080p].srt", b"GroupA subtitle"),
+    )
+
+    with patch(
+        "animesubinfo.api.download_subtitles", mock_download_subtitles(zip_content)
+    ):
+        result = await download_and_extract_subtitle(
+            "[GroupA] Anime - 01 [1080p].mkv", subtitle_id=12345
+        )
+
+        # Timing follows the release, so the matching group wins despite .srt.
+        assert result.filename == "[GroupA] Anime - 01 [1080p].srt"
+        assert result.content == b"GroupA subtitle"
 
 
 @pytest.mark.asyncio
