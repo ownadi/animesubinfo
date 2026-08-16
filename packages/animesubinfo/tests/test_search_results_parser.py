@@ -203,14 +203,13 @@ def test_search_results_blank(fixtures_dir: Path):
     assert len(parser.subtitles_list) == 0
 
 
-def test_search_results_with_cookie(fixtures_dir: Path):
+def test_search_results_sh_values(fixtures_dir: Path):
     with open(
         fixtures_dir / "ansi_search_results.html", "r", encoding="iso-8859-2"
     ) as file:
         html_content = file.read()
 
-    test_cookie = "test_cookie_value_123"
-    parser = SearchResultsParser(ansi_cookie=test_cookie)
+    parser = SearchResultsParser()
     parser.feed(html_content)
 
     # Verify sh values are stored for parsed subtitles

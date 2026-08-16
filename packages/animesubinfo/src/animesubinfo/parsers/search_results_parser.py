@@ -9,11 +9,10 @@ from ..models import Subtitles, SubtitlesRating
 class SearchResultsParser(HTMLParser):
     """Parser for search results from AnimeSubInfo website."""
 
-    def __init__(self, ansi_cookie: Optional[str] = None):
+    def __init__(self) -> None:
         super().__init__()
         self._subtitles_list: List[Subtitles] = []
         self._number_of_pages: int = 0
-        self._ansi_cookie: str = ansi_cookie or ""
 
         # State tracking
         self._in_napisy_table = False

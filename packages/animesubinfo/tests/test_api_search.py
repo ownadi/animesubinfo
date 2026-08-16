@@ -321,7 +321,7 @@ async def test_search_early_close_cancels_pending_pages() -> None:
     clients: list[httpx.AsyncClient] = []
 
     class FakeSearchResultsParser:
-        def __init__(self, ansi_cookie: str = "") -> None:
+        def __init__(self) -> None:
             self.subtitles_list = [result]
             self.number_of_pages = 2
 
@@ -372,7 +372,7 @@ async def test_search_page_error_does_not_cancel_result_consumer() -> None:
     page_returned = asyncio.Event()
 
     class FakeSearchResultsParser:
-        def __init__(self, ansi_cookie: str = "") -> None:
+        def __init__(self) -> None:
             self.subtitles_list = [result]
             self.number_of_pages = 2
 
@@ -430,7 +430,7 @@ async def test_title_search_can_close_while_yielding_later_pages() -> None:
             return "szukaj_old.php?pTitle=en&szukane=Naruto"
 
     class FakeSearchResultsParser:
-        def __init__(self, ansi_cookie: str = "") -> None:
+        def __init__(self) -> None:
             self.subtitles_list = [result]
             self.number_of_pages = 2
 

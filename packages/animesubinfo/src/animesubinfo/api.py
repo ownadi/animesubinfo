@@ -126,11 +126,8 @@ async def search(
         async with client.stream("GET", base_url, params=params) as response:
             response.raise_for_status()
 
-            # Extract ansi_sciagnij cookie
-            ansi_cookie = response.cookies.get("ansi_sciagnij", "")
-
             # Parse first page by streaming chunks
-            parser = SearchResultsParser(ansi_cookie=ansi_cookie)
+            parser = SearchResultsParser()
             async for chunk in response.aiter_text():
                 parser.feed(chunk)
 
@@ -159,7 +156,7 @@ async def search(
                 page_params = params.copy()
                 page_params["od"] = str(page_num - 1)  # 0-based pagination
 
-                page_parser = SearchResultsParser(ansi_cookie=ansi_cookie)
+                page_parser = SearchResultsParser()
                 async with client.stream(
                     "GET", base_url, params=page_params
                 ) as page_response:
@@ -248,7 +245,7 @@ async def _search_by_id(
                 ansi_cookie = response.cookies.get("ansi_sciagnij", "")
 
                 # Parse response to extract sh value
-                parser = SearchResultsParser(ansi_cookie=ansi_cookie)
+                parser = SearchResultsParser()
                 async for chunk in response.aiter_text():
                     parser.feed(chunk)
 
@@ -654,17 +651,12 @@ async def _fetch_title_subtitles(
         # Step 2: Parse first page to get total pages
         search_url = f"http://animesub.info/{search_path}"
 
-        ansi_cookie = ""
         first_parser: Optional[SearchResultsParser] = None
 
         async with client.stream("GET", search_url) as search_response:
             search_response.raise_for_status()
 
-            # Extract ansi_sciagnij cookie from first response
-            ansi_cookie = search_response.cookies.get("ansi_sciagnij", "")
-
-            # Create parser with the cookie and parse streaming chunks
-            first_parser = SearchResultsParser(ansi_cookie=ansi_cookie)
+            first_parser = SearchResultsParser()
             async for chunk in search_response.aiter_text():
                 first_parser.feed(chunk)
 
@@ -702,7 +694,7 @@ async def _fetch_title_subtitles(
                 page_params["od"] = str(page_num - 1)  # 0-based pagination
 
                 page_url = f"http://animesub.info/{parsed_url.path}"
-                page_parser = SearchResultsParser(ansi_cookie=ansi_cookie)
+                page_parser = SearchResultsParser()
                 async with client.stream(
                     "GET", page_url, params=page_params
                 ) as page_response:
